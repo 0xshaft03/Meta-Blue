@@ -1357,6 +1357,19 @@ $datapoints.Add($datapoint) | Out-Null
 
 $datapoint = [DataPoint]::new()
 $datapoint.isEnabled = $true
+$datapoint.jobname = "CodeIntegrity"
+$datapoint.scriptblock = {get-winevent -FilterHashtable @{LogName='Microsoft-Windows-CodeIntegrity/Operational';} | Where-Object{$_.leveldisplayname -eq 'Error'} | Select-Object Message, id, processid, timecreated}
+$datapoints.Add($datapoint) | Out-Null
+
+$datapoint = [DataPoint]::new()
+$datapoint.isEnabled = $true
+$datapoint.jobname = "SecurityLogCleared"
+$datapoint.mitreID = "T1070.001"
+$datapoint.scriptblock = {get-winevent -FilterHashtable @{LogName='Security';} | Where-Object{$_.id -eq 1102} | Select-Object TimeCreated, Id, Message}
+$datapoints.Add($datapoint) | Out-Null
+
+$datapoint = [DataPoint]::new()
+$datapoint.isEnabled = $true
 $datapoint.mitreID = "T1553.003"
 $datapoint.jobname = "SIPandTrustProviderHijacking"
 $datapoint.scriptblock = {
