@@ -35,6 +35,15 @@ class DataPoint {
     [string]$mitreID
  }
 
+ class ProcessCreateEventLog {
+    [string]$SID
+    [string]$accountName
+    $pid
+    [string]$processName
+    $ppid
+    [string]$parentName
+ }
+
 $datapoints = [System.Collections.ArrayList]@()
 
 function Build-Directories{
@@ -248,21 +257,6 @@ C:\PS> Get-Exports -DllPath C:\Some\Path\here.dll -ExportsToCpp C:\Some\Out\File
 	[Runtime.InteropServices.Marshal]::FreeHGlobal($HModule)
 }
 
-function Shipto-Splunk{
-    do{
-        $splunk = Read-Host "Do you want to ship to splunk?(Y/N)"
-        if($splunk -ieq 'y'){
-            foreach($file in Get-ChildItem $rawFolder){
-                Copy-Item -Path $file.FullName -Destination $jsonFolder
-            }
-            return $true
-        }elseif($splunk -ieq 'n'){
-            return $false
-        }else{
-            Write-Host -ForegroundColor Red "[-]Not a valid option."
-        }
-    }while($true)
-}
 
 function Get-FileName($initialDirectory){
 <#
@@ -443,13 +437,7 @@ while ($FirstHost -lt $LastHost) {
    return $IPSubnetList
 }
 function Enumerator([System.Collections.ArrayList]$iparray){
-<#
-    TODO: We need to add a method for determining windows hosts past ICMP. 
-    we can test-netconnection -port 135 and test-netconnection -commontcpport smb
-    TODO: For everything that is left after that, banner grab 22 because that should help
-    identify linux devices.
-    TODO: Past that, consult something else.
-#>
+
 <#
     Enumerator asynchronously pings and asynchronously performs DNS name resolution.
 #>
@@ -1139,6 +1127,12 @@ $datapoints.Add($datapoint) | Out-Null
 
 $datapoint = [DataPoint]::new()
 $datapoint.isEnabled = $true
+$datapoint.jobname = "AppPaths"
+$datapoint.scriptblock = {Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\*' -Name *}
+$datapoints.Add($datapoint) | Out-Null
+
+$datapoint = [DataPoint]::new()
+$datapoint.isEnabled = $true
 $datapoint.jobname = "UACBypassFodHelper"
 $datapoint.scriptblock = {
                 if(!(test-path HKU:)){
@@ -1460,6 +1454,9 @@ $datapoint.jobname = "NamedPipes"
 $datapoint.scriptblock = {get-childitem \\.\pipe\ | Select-Object fullname}
 $datapoints.Add($datapoint) | Out-Null
 
+<#
+    This is absolute trash.
+#>
 $datapoint = [DataPoint]::new()
 $datapoint.isEnabled = $false
 $datapoint.jobname = "WebShell"
