@@ -1004,7 +1004,7 @@ $datapoints.Add($datapoint) | Out-Null
 $datapoint = [DataPoint]::new()
 $datapoint.isEnabled = $true
 $datapoint.jobname = "NetAdapter"
-$datapoint.scriptblock = {Get-WmiObject win32_networkadapterconfiguration | Select-Object -Property PSComputerName,Description,IPAddress,IPSubnet,MACAddress,servicename}
+$datapoint.scriptblock = {Get-WmiObject win32_networkadapterconfiguration | Select-Object -Property PSComputerName,Description,IPAddress,IPSubnet,MACAddress,servicename,__server}
 $datapoints.Add($datapoint) | Out-Null
 
 $datapoint = [DataPoint]::new()
@@ -1626,7 +1626,11 @@ function Collect($dp){
 
         if($Sender.state -eq "Completed"){
 
-            Receive-Job $Sender | export-csv -force -append -NoTypeInformation -path "$rawFolder\Host_$Task.csv" | out-null;
+            $jobcontent = Receive-Job $Sender | Select-Object -Property *,CompName
+            foreach($j in $jobcontent){
+                $j.CompName = $Event.MessageData
+            }
+            $jobcontent | export-csv -force -append -NoTypeInformation -path "$rawFolder\Host_$Task.csv" | out-null;
 
             if(!$Sender.HasMoreData){
                 Unregister-Event -subscriptionid $EventSubscriber.SubscriptionId -Force;
@@ -1652,11 +1656,13 @@ function Collect($dp){
     write-host "[+]Starting" $dp.jobname "Jobs"
 
     if($localBox){
-        Register-ObjectEvent -InputObject (Start-Job -Name $dp.jobname -ScriptBlock $dp.scriptblock) -EventName StateChanged -Action $action | out-null
+        #$s = New-PSSession -ComputerName $env:COMPUTERNAME
+        #Register-ObjectEvent -InputObject ((Invoke-Command -Session $s -ScriptBlock $dp.scriptblock -AsJob -JobName $dp.jobname) | Out-Null) -EventName StateChanged -Action $action
+        Register-ObjectEvent -MessageData $env:COMPUTERNAME -InputObject (Start-Job -Name $dp.jobname -ScriptBlock $dp.scriptblock) -EventName StateChanged -Action $action | out-null
         
     }else{
         foreach($i in (Get-PSSession)){
-            Register-ObjectEvent -InputObject ((Invoke-Command -session $i -ScriptBlock $dp.scriptblock -asjob -jobname $dp.jobname) | out-null) -EventName StateChanged -Action $action | out-null             
+            Register-ObjectEvent -MessageData $i.ComputerName -InputObject ((Invoke-Command -session $i -ScriptBlock $dp.scriptblock -asjob -jobname $dp.jobname) | out-null) -EventName StateChanged -Action $action | out-null             
         }        
     }
 }
