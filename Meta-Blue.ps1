@@ -1316,7 +1316,7 @@ $datapoints.Add($datapoint) | Out-Null
 $datapoint = [DataPoint]::new()
 $datapoint.isEnabled = $true
 $datapoint.jobname = "DLLSinTempDirs"
-$datapoint.scriptblock = {(Get-Process -Module -ea 0).FileName|Where-Object{$_ -notlike "*system32*"}|Select-String "Appdata","ProgramData","Temp","Users","public"|Get-unique}
+$datapoint.scriptblock = {(Get-Process -Module -ea 0).FileName|Where-Object{$_ -notlike "*system32*"}|Select-String "Appdata","ProgramData","Temp","Users","public"|Get-unique|%{Get-FileHash -Path $_}}
 $datapoints.Add($datapoint) | Out-Null
 
 $datapoint = [DataPoint]::new()
@@ -1622,8 +1622,6 @@ function Enable-PSRemoting{
 function Collect($dp){
     $action =  {
         $Task = $Sender.name;
-        $ComputerName = $Sender.Location;
-
         if($Sender.state -eq "Completed"){
 
             $jobcontent = Receive-Job $Sender | Select-Object -Property *,CompName
@@ -1684,9 +1682,11 @@ function Meta-Blue {
         }
     }
 
-    Set-Location $outFolder
-    TearDown-Sessions
     WaitFor-Jobs
+    if(!$localBox){
+        TearDown-Sessions
+    }
+    Set-Location $outFolder
          
 }
 
