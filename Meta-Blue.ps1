@@ -1551,6 +1551,9 @@ $datapoint.scriptblock = {
             }
 $datapoints.Add($datapoint) | Out-Null
 
+<#
+    TODO: Dive into HKU:SID for run keys instead of just HKCU
+#>
 $datapoint = [DataPoint]::new()
 $datapoint.isEnabled = $true
 $datapoint.mitreID = "T1547.001"
@@ -1570,11 +1573,12 @@ $datapoint.scriptblock = {
                     HKCURun = [String](get-item 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run\' -ErrorAction SilentlyContinue).property
                     HKLMRunOnce = [String](get-item 'HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce\' -ErrorAction SilentlyContinue).property
                     HKCURunOnce = [String](Get-Item 'HKCU:\Software\Microsoft\Windows\CurrentVersion\RunOnce\' -ErrorAction SilentlyContinue).property
+                    HKLMRunOnce32 = [String](Get-Item 'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\RunOnce\' -ErrorAction SilentlyContinue).property
+                    HKLMRun32 = [String](Get-Item 'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Run\' -ErrorAction SilentlyContinue).property
+
 
                     Manufacturer = [String](Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation\' -ErrorAction SilentlyContinue).manufacturer
-
                     ShimCustom = [String](Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Custom' -ErrorAction SilentlyContinue)
-
                     Powershellv2 = if((test-path HKLM:\SOFTWARE\Microsoft\PowerShell\1\powershellengine\)){$true}else{$false}
                 }
                 $registry
