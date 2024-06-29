@@ -1037,10 +1037,102 @@ $datapoint.jobname = "SMBConnection"
 $datapoint.scriptblock = {Get-SmbConnection}
 $datapoints.Add($datapoint) | Out-Null
 
+
+<#
+    We created a class named ScheduledTask and manually parse
+    the xml files located at C:\Windows\System32\Tasks\
+#>
 $datapoint = [DataPoint]::new()
 $datapoint.isEnabled = $true
 $datapoint.jobname = "ScheduledTask"
-$datapoint.scriptblock = {get-scheduledtask}
+$datapoint.scriptblock = {
+    class ScheduledTask {
+        [string]$Author
+        [string]$Description
+        [string]$URI
+        [string]$RunLevel
+        [string]$GroupId
+        [System.Collections.ArrayList]$Commands
+        [System.Collections.ArrayList]$Arguments
+        [string]$ActionsContext
+    
+        ScheduledTask([System.Xml.XmlDocument]$scheduledTask){
+            # Manually set field if it is null
+            if($null -eq $scheduledTask.Task.RegistrationInfo.Author){
+                $this.Author = "Null"
+            }
+            else{
+                $this.Author = $scheduledTask.Task.RegistrationInfo.Author
+                $this.Description = $scheduledTask.Task.RegistrationInfo.Description
+                $this.URI = $scheduledTask.Task.RegistrationInfo.URI
+            
+            }
+    
+            if($null -eq $scheduledTask.Task.principals.Principal.RunLevel){
+                $this.RunLevel = "Null"
+            } else {
+                $this.RunLevel = $scheduledTask.Task.principals.Principal.RunLevel
+            }
+    
+            if($null -eq $scheduledTask.task.Principals.Principal.GroupId){
+                $this.GroupId = 'Null'
+            } else {
+                $this.GroupId = $scheduledTask.task.Principals.Principal.GroupId
+            }
+    
+            if($null -eq $scheduledTask.Task.Actions.context){
+                $this.ActionsContext = "Null"
+            } else {
+                $this.ActionsContext = $scheduledTask.Task.Actions.Context
+            }
+    
+    
+            $this.Commands = [System.Collections.ArrayList]@()
+            if($scheduledTask.Task.Actions.Exec.Count -gt 1) {
+    
+                foreach($exec in $scheduledTask.task.actions.exec.Command){
+                    $this.Commands.Add($exec)
+                }
+            
+            } elseif ($null -eq $scheduledTask.Task.Actions.Exec.command){
+                $this.Commands.Add("Null")
+            } else {
+                $this.Commands.Add($scheduledTask.Task.Actions.Exec.Command)
+            }
+
+            $this.Arguments = [System.Collections.ArrayList]@()
+            if($scheduledTask.Task.Actions.Exec.Arguments.Count -gt 1) {
+    
+                foreach($exec in $scheduledTask.task.actions.exec.arguments){
+                    $this.Arguments.Add($exec)
+                }
+            
+            } elseif ($null -eq $scheduledTask.Task.Actions.Exec.arguments){
+                $this.Arguments.Add("Null")
+            } else {
+                $this.Arguments.Add($scheduledTask.Task.Actions.Exec.arguments)
+            }
+        }
+    
+     }
+    $tasks = (Get-ChildItem -Recurse C:\Windows\system32\Tasks).fullname
+    $parsedTasks = [System.Collections.ArrayList]@();
+    foreach($task in $tasks){
+    
+        # Try to get content. Don't know why there is some protected stuff...
+        try{
+            $fullXML = [xml](Get-Content $task)
+        } catch {
+            continue;
+        }
+        
+        $schtask = [ScheduledTask]::new($fullXML)
+        
+    
+        $parsedTasks.Add($schtask) | Out-Null
+    }
+    $parsedTasks
+}
 $datapoints.Add($datapoint) | Out-Null
 
 $datapoint = [DataPoint]::new()
