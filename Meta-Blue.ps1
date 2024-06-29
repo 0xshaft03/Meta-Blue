@@ -67,7 +67,6 @@ $waitForJobs = ""
 $runningJobThreshold = 5
 $jobTimeOutThreshold = 20
 $isRanAsSchedTask = $false
-
 $nodeList = [System.Collections.ArrayList]@()
 
 function Get-Exports {
