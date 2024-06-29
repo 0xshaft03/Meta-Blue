@@ -1388,12 +1388,6 @@ $datapoints.Add($datapoint) | Out-Null
 
 $datapoint = [DataPoint]::new()
 $datapoint.isEnabled = $true
-$datapoint.jobname = "ScheduledTaskDetails"
-$datapoint.scriptblock = {(Get-ScheduledTask).actions | Where-Object{$_.execute -ne $null} |Select-Object execute,arguments}
-$datapoints.Add($datapoint) | Out-Null
-
-$datapoint = [DataPoint]::new()
-$datapoint.isEnabled = $true
 $datapoint.jobname = "ShortcutModification"
 $datapoint.scriptblock = {
                 Select-String -Path "C:\Users\*\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\*.lnk" -Pattern "exe";
