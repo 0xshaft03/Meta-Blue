@@ -801,8 +801,8 @@ $scriptblock = {
     $processes = Get-WmiObject win32_process
     $processes | ForEach-Object{
         Add-Member -InputObject $_ -Name Hash -Value (Get-FileHash -Path $_.ExecutablePath -ea SilentlyContinue).hash -MemberType NoteProperty 
-    } | Select-Object processname,handles,path.pscomputernamename,commandline,creationdate,executablepath,parentprocessid,processid, Hash
-    $processes
+    } 
+    $processes | Select-Object processname,handles,path.pscomputernamename,commandline,creationdate,executablepath,parentprocessid,processid, Hash
 }
 $datapoints.Add([DataPoint]::new("Process", $scriptblock, $true)) | Out-Null
 
