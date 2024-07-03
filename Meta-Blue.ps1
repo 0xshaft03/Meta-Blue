@@ -600,9 +600,9 @@ function Enumerator([System.Collections.ArrayList]$iparray){
                 $job | stop-job
             }
         }Start-Sleep -Seconds 8
-        if((get-job | Where-Object state -eq "completed" |Measure-Command).Count -eq 0){
-            if((get-job | Where-Object state -eq "failed" |Measure-Command).Count -eq 0){
-                if((get-job | Where-Object state -eq "Running" |Measure-Command).Count -lt $runningJobThreshold){
+        if((get-job | Where-Object state -eq "completed" |measure).Count -eq 0){
+            if((get-job | Where-Object state -eq "failed" |measure).Count -eq 0){
+                if((get-job | Where-Object state -eq "Running" |measure).Count -lt $runningJobThreshold){
                     $poll = $false
                     Write-Host "Total Elapsed:" ((get-date) - $refTime).Minutes
                 }
