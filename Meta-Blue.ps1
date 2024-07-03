@@ -508,7 +508,7 @@ function Enumerator([System.Collections.ArrayList]$iparray){
             }
         }
 
-        write-host -ForegroundColor Green "[+]There are" ($nodeList | Measure-Object).count "total live hosts."
+        write-host -ForegroundColor Green "[+]There are" ($nodeList | Measure).count "total live hosts."
 
         foreach($i in $nodeList){
             $ttl = $i.ttl
@@ -647,11 +647,11 @@ function Memory-Dumper{
         New-pssession -computername $i -credential $socreds -name $i | out-null
     }
 
-    if((Get-PSSession | Measure-Object).count -eq 0){
+    if((Get-PSSession | Measure).count -eq 0){
         return
     }
 
-    write-host -ForegroundColor Green "There are" ((Get-PSSession | Measure-Object).count) "Sessions."
+    write-host -ForegroundColor Green "There are" ((Get-PSSession | Measure).count) "Sessions."
 
     foreach($i in (Get-PSSession)){
         if(!(invoke-command -session $i -ScriptBlock { Test-Path "c:\winpmem-2.1.post4.exe" })){
@@ -1445,17 +1445,17 @@ function Build-Sessions{
         }
         
     
-        if((Get-PSSession | Measure-Object).count -eq 0){
+        if((Get-PSSession | Measure).count -eq 0){
             return
         }    
 
-        write-host -ForegroundColor Green "There are" ((Get-PSSession | Measure-Object).count) "Sessions."
+        write-host -ForegroundColor Green "There are" ((Get-PSSession | Measure).count) "Sessions."
     } 
 
 }
 
 function WaitFor-Jobs{
-    while((get-job | Where-Object state -eq "Running" |Measure-Object).Count -ne 0){
+    while((get-job | Where-Object state -eq "Running" |Measure).Count -ne 0){
             get-job | Format-Table -RepeatHeader
             Start-Sleep -Seconds 10
     }
