@@ -539,7 +539,7 @@ function Enumerator([System.Collections.ArrayList]$iparray) {
             }
         }
 
-        write-host -ForegroundColor Green "[+]There are" ($nodeList | Measure).count "total live hosts."
+        write-host -ForegroundColor Green "[+]There are" ($global:nodeList | Measure).count "total live hosts."
         Write-Host -ForegroundColor Green "[+]Connection Testing Complete beep boop beep"
         Write-Host -ForegroundColor Green "[+]Starting Reverse DNS Resolution"
 
@@ -547,22 +547,24 @@ function Enumerator([System.Collections.ArrayList]$iparray) {
             Asynchronously Resolve DNS Names
         #>
         
-        $dnsTask = foreach($i in $nodeList){
+        $dnsTask = foreach($i in $global:nodeList){
                     [system.net.dns]::GetHostEntryAsync($i.ipaddress)
                     
         }[threading.tasks.task]::WaitAll($dnsTask) | out-null
 
         $dnsTask = $dnsTask | Where-Object{$_.status -ne "Faulted"}
 
-        $nodelist = $nodelist | Sort-Object ipaddress
+        $global:nodeList = $global:nodelist | Sort-Object ipaddress
         
         foreach($i in $dnsTask){
-            $hostname = (($i.result.hostname).split('.')[0]).toUpper()
+            $hostname = ($i.result.hostname)
             $ip = ($i.result.addresslist.Ipaddresstostring)
+
             if(($null -ne $ip) -and ($Null -ne $hostname) -and ($ip -ne "") -and ($hostname -ne "")){
-                $index = Binary-Search $nodeList $ip ipaddress
-                if(($index -ne "") -and ($null -ne $index)){
-                    $nodeList[$index].hostname = $hostname
+                $index = $null
+                $index = Binary-Search $global:nodeList $ip ipaddress
+                if($null -ne $index){
+                    $global:nodelist[$index].hostname = $hostname
                 }
             }
             
@@ -572,7 +574,7 @@ function Enumerator([System.Collections.ArrayList]$iparray) {
 
         Write-host -ForegroundColor Green "[+]Checking Windows OS Type"
 
-        foreach($i in $nodeList){
+        foreach($i in $global:nodelist){
             if(($i.operatingsystem -eq "Windows")){
                 $comp = $i.ipaddress
                 Write-Host -ForegroundColor Green "Starting OS ID Job on:" $comp
@@ -1531,7 +1533,7 @@ function Collect($dp){
         
     }else{
         foreach($i in (Get-PSSession)){
-            Register-ObjectEvent -MessageData $i.ComputerName -InputObject ((Invoke-Command -session $i -ScriptBlock $dp.scriptblock -asjob -jobname $dp.jobname)) -EventName StateChanged -Action $action           
+            Register-ObjectEvent -MessageData $i.ComputerName -InputObject ((Invoke-Command -session $i -ScriptBlock $dp.scriptblock -asjob -jobname $dp.jobname)) -EventName StateChanged -Action $action | Out-Null        
         }        
     }
 }
