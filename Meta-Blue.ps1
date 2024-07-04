@@ -67,6 +67,22 @@ class DataPoint {
     [string]$parentName
  }
 
+ class Node {
+    [string]$Hostname
+    [string]$IPAddress
+    [string]$OperatingSystem
+    [int]$TTL
+  
+    Node() {
+      $this.Hostname = ""
+      $this.IPAddress = ""
+      $this.OperatingSystem = ""
+      $this.TTL = 0
+    }
+  
+  
+}
+
 $datapoints = [System.Collections.ArrayList]@()
 
 function Build-Directories{
@@ -458,18 +474,27 @@ while ($FirstHost -lt $LastHost) {
 # Calls on IP List #######################################
    return $IPSubnetList
 }
-function Enumerator([System.Collections.ArrayList]$iparray){
+function Enumerator([System.Collections.ArrayList]$iparray) {
 
 <#
     Enumerator asynchronously pings and asynchronously performs DNS name resolution.
 #>
     Build-Directories
 
+    
+
     if($adEnumeration){
         Write-host -ForegroundColor Green "[+]Checking Windows OS Type"
    
         foreach($i in $iparray){
-            if($null -ne $i){                
+            $nodeObj = [PSCustomObject]@{
+                HostName = ""
+                IPAddress = ""
+                OperatingSystem = ""
+                TTL = 0
+            }
+            $nodeObj.Hostname = $i
+            if($null -ne $i) {                
                     (Invoke-Command -ComputerName $i -ScriptBlock  {(Get-WmiObject win32_operatingsystem).caption} -AsJob -JobName $i) | out-null               
                     }
                 }get-job | wait-job | out-null
@@ -492,36 +517,29 @@ function Enumerator([System.Collections.ArrayList]$iparray){
             if(!$duplicateIp.Contains($i.Address.IPAddressToString)){
 
                 $duplicateIp.add($i.Address.IPAddressToString) | out-null
-                
-                $nodeObj = [PSCustomObject]@{
-                    HostName = ""
-                    IPAddress = ""
-                    OperatingSystem = ""
-                    TTL = 0
-                }
+
+                $nodeObj = [Node]::new()
                 
                 $nodeObj.IPAddress = $i.Address.IPAddressToString
                 
                 $nodeObj.TTL = $i.Options.ttl
+                
+                $ttl = $nodeObj.TTL
+                if($ttl -le 64 -and $ttl -ge 45){
+                    $nodeObj.OperatingSystem = "*NIX"
+                }elseif($ttl -le 128 -and $ttl -ge 115){
+                    $nodeObj.OperatingSystem = "Windows"
+                
+                }elseif($ttl -le 255 -and $ttl -ge 230){
+                    $nodeObj.OperatingSystem = "Cisco"
+                }
+
             
-                $nodeList.Add($nodeObj) | Out-Null
+                $global:nodeList.Add($nodeObj)
             }
         }
 
         write-host -ForegroundColor Green "[+]There are" ($nodeList | Measure).count "total live hosts."
-
-        foreach($i in $nodeList){
-            $ttl = $i.ttl
-            if($ttl -le 64 -and $ttl -ge 45){
-                $i.OperatingSystem = "*NIX"
-            }elseif($ttl -le 128 -and $ttl -ge 115){
-                $i.OperatingSystem = "Windows"
-            
-            }elseif($ttl -le 255 -and $ttl -ge 230){
-                $i.OperatingSystem = "Cisco"
-            }
-        }
-
         Write-Host -ForegroundColor Green "[+]Connection Testing Complete beep boop beep"
         Write-Host -ForegroundColor Green "[+]Starting Reverse DNS Resolution"
 
@@ -562,6 +580,8 @@ function Enumerator([System.Collections.ArrayList]$iparray){
                     #Start-Job -Name $comp -ScriptBlock {gwmi win32_operatingsystem -ComputerName $using:comp -ErrorAction SilentlyContinue}|Out-Null
                     
                     Invoke-Command -ComputerName $i.hostname -ScriptBlock {Get-WmiObject win32_operatingsystem -ErrorAction SilentlyContinue} -AsJob -JobName $comp | out-null
+                } else {
+                    Write-Host "NO HOSTNAME FOR $comp"
                 }
             }
         }
@@ -1407,9 +1427,9 @@ function Build-Sessions{
     if(!$localBox){
         $excludedHosts = @()
 
-        Set-Item WSMan:\localhost\Shell\MaxShellsPerUser -Value 10000
-        Set-Item WSMan:\localhost\Plugin\microsoft.powershell\Quotas\MaxShellsPerUser -Value 10000
-        Set-Item WSMan:\localhost\Plugin\microsoft.powershell\Quotas\MaxShells -Value 10000
+        #Set-Item WSMan:\localhost\Shell\MaxShellsPerUser -Value 10000
+        #Set-Item WSMan:\localhost\Plugin\microsoft.powershell\Quotas\MaxShellsPerUser -Value 10000
+        #Set-Item WSMan:\localhost\Plugin\microsoft.powershell\Quotas\MaxShells -Value 10000
         <#
             Clean up and broken PSSessions.
         #>
@@ -1426,7 +1446,8 @@ function Build-Sessions{
         <#
             Create PSSessions
         #>
-        foreach($i in $nodeList){
+        
+        foreach($i in $global:nodeList){
             if($null -ne $activeSessions){
                 if(!$activeSessions.Contains($i.hostname)){
                     if(($i.hostname -ne "") -and ($i.operatingsystem -like "*Windows*") -and (!$excludedHosts.hostname.Contains($i.hostname))){
@@ -1464,7 +1485,7 @@ function WaitFor-Jobs{
 
 function Enable-PSRemoting{
     
-    foreach($node in $nodeList){
+    foreach($node in $global:nodeList){
         wmic /node:$($node.IpAddress) process call create "powershell enable-psremoting -force"
     }
 }
@@ -1510,7 +1531,7 @@ function Collect($dp){
         
     }else{
         foreach($i in (Get-PSSession)){
-            Register-ObjectEvent -MessageData $i.ComputerName -InputObject ((Invoke-Command -session $i -ScriptBlock $dp.scriptblock -asjob -jobname $dp.jobname) | out-null) -EventName StateChanged -Action $action | out-null             
+            Register-ObjectEvent -MessageData $i.ComputerName -InputObject ((Invoke-Command -session $i -ScriptBlock $dp.scriptblock -asjob -jobname $dp.jobname)) -EventName StateChanged -Action $action           
         }        
     }
 }
@@ -1688,7 +1709,7 @@ function Show-CollectionMenu{
                                         $nodeObj.IPaddress = $node.IPAddress
                                         $nodeObj.OperatingSystem = $node.OperatingSystem
                                         $nodeObj.TTL = $node.TTL
-                                        $nodeList.Add($nodeObj) | out-null
+                                        $global:nodeList.Add($nodeObj) | out-null
                                     }
                                 }
                                 
@@ -1712,6 +1733,7 @@ function Show-CollectionMenu{
                                 $ips += Get-SubnetRange -IPAddress $ipa -CIDR $cidr
                             }
                             Enumerator($ips)
+                            Build-Sessions
                             Meta-Blue
                             break
                         }
