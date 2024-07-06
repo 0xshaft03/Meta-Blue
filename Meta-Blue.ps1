@@ -27,6 +27,15 @@ $global:rawFolder = "$outFolder\raw"
 $global:anomaliesFolder = "$outFolder\Anomalies"
 #$jsonFolder = "C:\MetaBlue Results"
 $global:excludedHostsFile = "C:\Meta-Blue\ExcludedHosts.csv"
+$adEnumeration = $false
+$winrm = $true
+$localBox = $false
+$waitForJobs = ""
+$runningJobThreshold = 1
+$jobTimeOutThreshold = 20
+$isRanAsSchedTask = $false
+$global:nodeList = [System.Collections.ArrayList]@()
+$datapoints = [System.Collections.ArrayList]@()
 
 class DataPoint {
     [string]$jobname
@@ -72,6 +81,7 @@ class DataPoint {
     [string]$IPAddress
     [string]$OperatingSystem
     [int]$TTL
+    [System.Management.Automation.Runspaces.PSSession]$Session
   
     Node() {
       $this.Hostname = ""
@@ -83,7 +93,64 @@ class DataPoint {
   
 }
 
-$datapoints = [System.Collections.ArrayList]@()
+
+
+function Build-Sessions{
+    if(!$localBox){
+        $excludedHosts = @()
+
+        #Set-Item WSMan:\localhost\Shell\MaxShellsPerUser -Value 10000
+        #Set-Item WSMan:\localhost\Plugin\microsoft.powershell\Quotas\MaxShellsPerUser -Value 10000
+        #Set-Item WSMan:\localhost\Plugin\microsoft.powershell\Quotas\MaxShells -Value 10000
+        <#
+            Clean up and broken PSSessions.
+        #>
+        $brokenSessions = (Get-PSSession | Where-Object{$_.State -eq "Broken"}).Id
+        if($null -ne $brokenSessions){
+            Remove-PSSession -id $brokenSessions
+        }
+        $activeSessions = (Get-PSSession | Where-Object{$_.State -eq "Opened"}).ComputerName
+
+        if(test-path $excludedHostsFile){
+            $excludedHosts = import-csv $excludedHostsFile
+        }
+
+        <#
+            Create PSSessions
+        #>
+        
+
+
+        foreach($node in $global:nodeList){
+            if($null -ne $activeSessions){
+                if(!$activeSessions.Contains($node.hostname)){
+                    #if(($node.hostname -ne "") -and ($node.operatingsystem -like "*Windows*") -and (!$excludedHosts.hostname.Contains($i.hostname))){
+                    if(($node.hostname -ne "") -and ($node.operatingsystem -like "*Windows*")){
+                        Write-host "Starting PSSession on" $node.hostname
+                        $node.PSSession = New-pssession -computername $node.hostname -name $node.hostname -SessionOption (New-PSSessionOption -NoMachineProfile -MaxConnectionRetryCount 5) -ThrottleLimit 100| out-null
+                    }
+                }else{
+                    Write-host "PSSession already exists:" $node.hostname -ForegroundColor Red
+                }
+            }else{
+                write-host "Building Sessions " $node.Hostname $node.OperatingSystem
+                #if(($node.hostname -ne "") -and ($node.operatingsystem -like "*windows*") -and (!$excludedHosts.hostname.Contains($node.hostname))){
+                if(($node.hostname -ne "") -and ($node.operatingsystem -like "*windows*")){
+                    Write-host "Starting PSSession on" $node.hostname
+                    New-pssession -computername $node.hostname -name $node.hostname -SessionOption (New-PSSessionOption -NoMachineProfile -MaxConnectionRetryCount 5) -ThrottleLimit 100| out-null
+                }
+            }
+        }
+        
+    
+        if((Get-PSSession | Measure).count -eq 0){
+            return
+        }    
+
+        write-host -ForegroundColor Green "There are" ((Get-PSSession | Measure).count) "Sessions."
+    } 
+
+}
 
 function Build-Directories{
     if(!(test-path $outFolder)){
@@ -99,14 +166,7 @@ function Build-Directories{
     }#>
 }
 
-$adEnumeration = $false
-$winrm = $true
-$localBox = $false
-$waitForJobs = ""
-$runningJobThreshold = 5
-$jobTimeOutThreshold = 20
-$isRanAsSchedTask = $false
-$nodeList = [System.Collections.ArrayList]@()
+
 
 function Get-Exports {
 <#
@@ -484,20 +544,18 @@ function Enumerator([System.Collections.ArrayList]$iparray) {
     
 
     if($adEnumeration){
-        Write-host -ForegroundColor Green "[+]Checking Windows OS Type"
-   
-        foreach($i in $iparray){
-            $nodeObj = [PSCustomObject]@{
-                HostName = ""
-                IPAddress = ""
-                OperatingSystem = ""
-                TTL = 0
-            }
-            $nodeObj.Hostname = $i
-            if($null -ne $i) {                
-                    (Invoke-Command -ComputerName $i -ScriptBlock  {(Get-WmiObject win32_operatingsystem).caption} -AsJob -JobName $i) | out-null               
-                    }
-                }get-job | wait-job | out-null
+        
+        $ADComputers = Get-ADComputer -filter * -Property *
+        foreach($computer in $ADComputers){
+
+            $nodeObj = [Node]::new()
+            $nodeObj.Hostname = $computer.Name
+            $nodeObj.OperatingSystem = $computer.OperatingSystem
+            $nodeObj.IPAddress = (Resolve-DnsName $nodeObj.Hostname | ?{$_.Type -eq "A"}).I
+            $global:nodeList.Add($nodeObj) |Out-Null
+        }
+
+        
     }
     else{
         <#
@@ -559,12 +617,16 @@ function Enumerator([System.Collections.ArrayList]$iparray) {
         foreach($i in $dnsTask){
             $hostname = ($i.result.hostname)
             $ip = ($i.result.addresslist.Ipaddresstostring)
-
             if(($null -ne $ip) -and ($Null -ne $hostname) -and ($ip -ne "") -and ($hostname -ne "")){
                 $index = $null
                 $index = Binary-Search $global:nodeList $ip ipaddress
-                if($null -ne $index){
+                #write-host "Binary Search Index: " $index
+                if($index -ne $null){
                     $global:nodelist[$index].hostname = $hostname
+
+                }else {
+                    write-host "index was null"
+
                 }
             }
             
@@ -574,14 +636,39 @@ function Enumerator([System.Collections.ArrayList]$iparray) {
 
         Write-host -ForegroundColor Green "[+]Checking Windows OS Type"
 
+        $OSJobEventAction = {
+            Write-host "Checking Sender.state: " $Sender.state
+            if($Sender.state -eq "completed"){
+                
+                $osinfo = Receive-Job $Sender
+                
+                if(($null -ne $osinfo) -and ($osinfo -ne "") -and ($osinfo.csname -ne "") -and ($null -ne $osinfo.csname)){
+    
+                   $hostname = (($osinfo.CSName).split('.')[0]).toUpper()
+                   
+                   foreach($node in $global:nodeList){
+                       if($node.IPAddress -eq $Sender.name){
+                           $node.hostname = $hostname
+                           $node.operatingsystem = $osinfo.caption
+                       }
+                   }
+               }
+           }
+           elseif($Sender.State -eq "failed"){
+               Remove-Job $Sender.id -Force
+           }
+    
+        }
+
+
         foreach($i in $global:nodelist){
             if(($i.operatingsystem -eq "Windows")){
                 $comp = $i.ipaddress
                 Write-Host -ForegroundColor Green "Starting OS ID Job on:" $comp
                 if(($i.hostname -ne "") -and ($null -ne $i.hostname)){
                     #Start-Job -Name $comp -ScriptBlock {gwmi win32_operatingsystem -ComputerName $using:comp -ErrorAction SilentlyContinue}|Out-Null
-                    
-                    Invoke-Command -ComputerName $i.hostname -ScriptBlock {Get-WmiObject win32_operatingsystem -ErrorAction SilentlyContinue} -AsJob -JobName $comp | out-null
+                    Register-ObjectEvent -MessageData $i.hostname -InputObject ((Invoke-Command -ComputerName $i.hostname -ScriptBlock {Get-WmiObject win32_operatingsystem -ErrorAction SilentlyContinue} -AsJob -JobName $comp)) -EventName StateChanged -Action $OSJobEventAction 
+                    #Invoke-Command -ComputerName $i.hostname -ScriptBlock {Get-WmiObject win32_operatingsystem -ErrorAction SilentlyContinue} -AsJob -JobName $comp | out-null
                 } else {
                     Write-Host "NO HOSTNAME FOR $comp"
                 }
@@ -591,6 +678,10 @@ function Enumerator([System.Collections.ArrayList]$iparray) {
     }
     Write-Host -ForegroundColor Green "[+]All OS Jobs Started"
     
+    
+
+
+    <#
     $poll = $true
     
     $refTime = (Get-Date)
@@ -609,7 +700,7 @@ function Enumerator([System.Collections.ArrayList]$iparray) {
                     foreach($i in $nodeList){
                         if($i.IPAddress -eq $job.name){
                             $i.hostname = $hostname
-                            $i.operatingsystem =$osinfo.caption
+                            $i.operatingsystem = $osinfo.caption
                         }
                     }
                 }
@@ -631,6 +722,8 @@ function Enumerator([System.Collections.ArrayList]$iparray) {
             }
         }
     }
+
+    #>
     <#
         Create the DnsMapper.csv
     #>
@@ -1425,57 +1518,7 @@ function TearDown-Sessions{
     }
 }
 
-function Build-Sessions{
-    if(!$localBox){
-        $excludedHosts = @()
 
-        #Set-Item WSMan:\localhost\Shell\MaxShellsPerUser -Value 10000
-        #Set-Item WSMan:\localhost\Plugin\microsoft.powershell\Quotas\MaxShellsPerUser -Value 10000
-        #Set-Item WSMan:\localhost\Plugin\microsoft.powershell\Quotas\MaxShells -Value 10000
-        <#
-            Clean up and broken PSSessions.
-        #>
-        $brokenSessions = (Get-PSSession | Where-Object{$_.State -eq "Broken"}).Id
-        if($null -ne $brokenSessions){
-            Remove-PSSession -id $brokenSessions
-        }
-        $activeSessions = (Get-PSSession | Where-Object{$_.State -eq "Opened"}).ComputerName
-
-        if(test-path $excludedHostsFile){
-            $excludedHosts = import-csv $excludedHostsFile
-        }
-
-        <#
-            Create PSSessions
-        #>
-        
-        foreach($i in $global:nodeList){
-            if($null -ne $activeSessions){
-                if(!$activeSessions.Contains($i.hostname)){
-                    if(($i.hostname -ne "") -and ($i.operatingsystem -like "*Windows*") -and (!$excludedHosts.hostname.Contains($i.hostname))){
-                        Write-host "Starting PSSession on" $i.hostname
-                        New-pssession -computername $i.hostname -name $i.hostname -SessionOption (New-PSSessionOption -NoMachineProfile -MaxConnectionRetryCount 5) -ThrottleLimit 100| out-null
-                    }
-                }else{
-                    Write-host "PSSession already exists:" $i.hostname -ForegroundColor Red
-                }
-            }else{
-                if(($i.hostname -ne "") -and ($i.operatingsystem -like "*windows*") -and (!$excludedHosts.hostname.Contains($i.hostname))){
-                    Write-host "Starting PSSession on" $i.hostname
-                    New-pssession -computername $i.hostname -name $i.hostname -SessionOption (New-PSSessionOption -NoMachineProfile -MaxConnectionRetryCount 5) -ThrottleLimit 100| out-null
-                }
-            }
-        }
-        
-    
-        if((Get-PSSession | Measure).count -eq 0){
-            return
-        }    
-
-        write-host -ForegroundColor Green "There are" ((Get-PSSession | Measure).count) "Sessions."
-    } 
-
-}
 
 function WaitFor-Jobs{
     while((get-job | Where-Object state -eq "Running" |Measure).Count -ne 0){
@@ -1533,7 +1576,12 @@ function Collect($dp){
         
     }else{
         foreach($i in (Get-PSSession)){
-            Register-ObjectEvent -MessageData $i.ComputerName -InputObject ((Invoke-Command -session $i -ScriptBlock $dp.scriptblock -asjob -jobname $dp.jobname)) -EventName StateChanged -Action $action | Out-Null        
+            while ($i.availability -ne "Available") {
+                  Start-Sleep -Milliseconds 10
+            }
+
+            Register-ObjectEvent -MessageData $i.ComputerName -InputObject ((Invoke-Command -session $i -ScriptBlock $dp.scriptblock -asjob -jobname $dp.jobname)) -EventName StateChanged -Action $action | Out-Null 
+
         }        
     }
 }
