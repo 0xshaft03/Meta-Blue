@@ -26,7 +26,7 @@ function Invoke-Discovery {
     .NOTES
         Author: 0xshaft03
     #>
-    [CmdletBinding()]
+    [CmdletBinding(HelpUri="https://github.com/0xshaft03/Meta-Blue")]
     param (
         [Parameter(ParameterSetName = 'ActiveDirectory')]
         [string]$DomainName,
