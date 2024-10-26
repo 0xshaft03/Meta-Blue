@@ -1462,6 +1462,8 @@ $scriptblock = {
             }
 $datapoints.Add([DataPoint]::new("RegistryMisc", $scriptblock, $true, "T1547.001")) | Out-Null
 
+
+
 function Find-File{
     if(!$localBox){
         do{
