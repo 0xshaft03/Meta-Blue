@@ -6,7 +6,7 @@ Currently collects 76 forensically relevant data points.
 # In Progress:
 
 ## Collection
- - A few of the datapoints being collected are either irellevant or do not return something of inplict value.
+ - A few of the datapoints being collected are either irrelevant or do not return something of implict value.
  - Reworking services to scrape registry instead of get-services/gwmi win32_service/etc.
  - Incorporating checks from tools like [WinPwn](https://github.com/S3cur3Th1sSh1t/WinPwn) and [WinPEAS](https://github.com/peass-ng/PEASS-ng/tree/master/winPEAS). (if attackers know where they can privesc, shouldn't you?)
 
