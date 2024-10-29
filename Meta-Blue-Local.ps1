@@ -187,7 +187,7 @@ $scriptblock = {
 }
 $datapoints.Add([DataPoint]::new("PrintProcessors", $scriptblock, $true, "T1547.012")) | Out-Null
 
-$scriptblock = {get-itemproperty "HKLM:\SOFTWARE\Microsoft\Active Setup\Installed Components\*" | Select-Object componentid,stubpath,pspath}
+$scriptblock = {get-itemproperty "HKLM:\SOFTWARE\Microsoft\Active Setup\Installed Components\*" | Select-Object "(default)",componentid,stubpath,pspath}
 $datapoints.Add([DataPoint]::new("ActiveSetup", $scriptblock, $true, "T1547.014")) | Out-Null
 
 $scriptblock = {
