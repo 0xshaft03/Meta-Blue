@@ -714,32 +714,69 @@ $datapoints.Add([DataPoint]::new("NamedPipes", $scriptblock, $true)) | Out-Null
     Im also being lazy here. i need to break these out into their separate datapoints.
 #>
 $scriptblock = {  
-                
-
+                New-PSDrive -Name HKU -PSProvider Registry -Root HKEY_USERS
+                $HKCUS = (Get-Item HKU:\*).name
                 $registry = [PSCustomObject]@{
                     
-                    BootShell = [string](Get-ItemProperty "HKLM:\system\CurrentControlSet\Control\Session Manager\" -name bootshell).bootshell
-
-                    BootExecute = [string](Get-ItemProperty "HKLM:\system\CurrentControlSet\Control\Session Manager\" -name BootExecute).BootExecute
-
-                    NetworkList = [String]((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\NetworkList\Signatures\UnManaged\*' -ErrorAction SilentlyContinue).dnssuffix)
-
-                    HKLMRun = [String](get-item 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Run\' -ErrorAction SilentlyContinue).property
-                    HKCURun = [String](get-item 'HKCU:\Software\Microsoft\Windows\CurrentVersion\Run\' -ErrorAction SilentlyContinue).property
-                    HKLMRunOnce = [String](get-item 'HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce\' -ErrorAction SilentlyContinue).property
-                    HKCURunOnce = [String](Get-Item 'HKCU:\Software\Microsoft\Windows\CurrentVersion\RunOnce\' -ErrorAction SilentlyContinue).property
-                    HKLMRunOnce32 = [String](Get-Item 'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\RunOnce\' -ErrorAction SilentlyContinue).property
-                    HKLMRun32 = [String](Get-Item 'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Run\' -ErrorAction SilentlyContinue).property
-
-
+                    HKLMRun = [String]($(if(Test-Path 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Run\'){Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Run\'}))
+                    HKLMRun32 = [String]($(if(Test-Path 'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Run\'){  Get-ItemProperty 'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Run\'}))
+                    HKLMRunOnce = [String]($(if(Test-Path 'HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce\'){  Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce\'}))
+                    HKLMRunOnce32 = [String]($(if(Test-Path 'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\RunOnce\'){  Get-ItemProperty 'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\RunOnce\'}))
+                    HKLMPolicyRun = [String]($(if(Test-Path 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\Run'){  Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\Run'}))
+                    HKLMBootExecute = [string]($(if(Test-Path "HKLM:\system\CurrentControlSet\Control\Session Manager\"){ Get-ItemProperty "HKLM:\system\CurrentControlSet\Control\Session Manager\"}))
+                    HKLMRunServicesOnce = [string]($(if(Test-Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\RunServicesOnce\"){ Get-ItemProperty "HKLM:\Software\Microsoft\Windows\CurrentVersion\RunServicesOnce\"}))
+                    HKLMRunServices = [string]($(if(Test-Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\RunServices\"){ Get-ItemProperty "HKLM:\Software\Microsoft\Windows\CurrentVersion\RunServices\"}))
+                    HKLMShellFolders = [string]($(if(Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders\"){ Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders\"}))
+                    HKLMUserShellFolders = [string]($(if(Test-Path "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders\"){ Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders\"}))
+                    <#
                     Manufacturer = [String](Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\OEMInformation\' -ErrorAction SilentlyContinue).manufacturer
                     ShimCustom = [String](Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\AppCompatFlags\Custom' -ErrorAction SilentlyContinue)
                     Powershellv2 = if((test-path HKLM:\SOFTWARE\Microsoft\PowerShell\1\powershellengine\)){$true}else{$false}
+                    BootShell = [string](Get-ItemProperty "HKLM:\system\CurrentControlSet\Control\Session Manager\" -name bootshell).bootshell
+                    
+                    NetworkList = [String]((Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\NetworkList\Signatures\UnManaged\*' -ErrorAction SilentlyContinue).dnssuffix)
+                    #>
                 }
+                foreach($sid in $hkcus){
+                    $sidy = $sid.replace("HKEY_USERS","HKU:");
+                    $path= $sidy+"\software\microsoft\windows\currentversion\run\";
+                    if(test-path $path){
+                        Add-Member -InputObject $registry -MemberType NoteProperty -Name $path -Value $(Get-ItemProperty -LiteralPath $path)
+                    }
+                    $path= $sidy+"\software\microsoft\windows\currentversion\runonce\";
+                    if(test-path $path){
+                        Add-Member -InputObject $registry -MemberType NoteProperty -Name $path -Value $(Get-ItemProperty -LiteralPath $path)
+                    }
+                    $path=$sidy+"\Software\Microsoft\Windows NT\CurrentVersion\Windows\"
+                    if(test-path $path){
+                        Add-Member -InputObject $registry -MemberType NoteProperty -Name $path -Value $(Get-ItemProperty -LiteralPath $path)
+                    }
+                    $path=$sidy+"\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\Run\"
+                    if(test-path $path){
+                        Add-Member -InputObject $registry -MemberType NoteProperty -Name $path -Value $(Get-ItemProperty -LiteralPath $path)
+                    }
+                    $path=$sidy+"\Software\Microsoft\Windows\CurrentVersion\RunServicesOnce\"
+                    if(test-path $path){
+                        Add-Member -InputObject $registry -MemberType NoteProperty -Name $path -Value $(Get-ItemProperty -LiteralPath $path)
+                    }
+                    $path=$sidy+"\Software\Microsoft\Windows\CurrentVersion\RunServices\"
+                    if(test-path $path){
+                        Add-Member -InputObject $registry -MemberType NoteProperty -Name $path -Value $(Get-ItemProperty -LiteralPath $path)
+                    }
+                    $path=$sidy+"\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\Shell Folders\"
+                    if(test-path $path){
+                        Add-Member -InputObject $registry -MemberType NoteProperty -Name $path -Value $(Get-ItemProperty -LiteralPath $path)
+                    }
+                    $path=$sidy+"\SOFTWARE\Microsoft\Windows\CurrentVersion\Explorer\User Shell Folders\"
+                    if(test-path $path){
+                        Add-Member -InputObject $registry -MemberType NoteProperty -Name $path -Value $(Get-ItemProperty -LiteralPath $path)
+                    }
+                }
+            
                 $registry
         
             }
-$datapoints.Add([DataPoint]::new("RegistryMisc", $scriptblock, $true, "T1547.001")) | Out-Null
+$datapoints.Add([DataPoint]::new("RegistryRunKeys", $scriptblock, $true, "T1547.001")) | Out-Null
 
 function WaitFor-Jobs{
     while((get-job | Where-Object state -eq "Running" |Measure).Count -ne 0){
