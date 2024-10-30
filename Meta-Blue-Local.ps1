@@ -75,7 +75,7 @@ function Build-Directories{
     so something like: Invoke-Collection -light --> that instantiates a lightweight
     collector class etc.
 #>
-$scriptblock = {Get-ItemProperty "HKLM:\System\CurrentControlSet\services\TermService\Parameters\*"}
+$scriptblock = {Get-ItemProperty "HKLM:\System\CurrentControlSet\services\TermService\Parameters\"}
 $datapoints.Add([DataPoint]::new("TerminalServicesDLL", $scriptblock, $true, "T1505.005")) | Out-Null
 
 $scriptblock = {$(
