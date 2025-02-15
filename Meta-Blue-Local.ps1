@@ -12,7 +12,7 @@
     Prerequisite   : PowerShell
     Created        : 26 Oct 24
 #>
-
+using module .\Modules\DataPoint.psm1
 $timestamp = (get-date).Tostring("yyyy_MM_dd_hh_mm_ss")
 
 <#
@@ -26,34 +26,7 @@ $global:excludedHostsFile = "C:\Meta-Blue\ExcludedHosts.csv"
 $global:nodeList = [System.Collections.ArrayList]@()
 $datapoints = [System.Collections.ArrayList]@()
 
-class DataPoint {
-    [string]$jobname
-    [scriptblock]$scriptblock
-    [bool]$isEnabled
-    [string]$mitreID
 
-    DataPoint($jobname, $scriptblock, $isEnabled, $mitreID){
-        $this.jobname = $jobname
-        $this.scriptblock = $scriptblock
-        $this.isEnabled = $isEnabled
-        $this.mitreID = $mitreID
-    }
-
-    DataPoint($jobname, $scriptblock, $isEnabled){
-        $this.jobname = $jobname
-        $this.scriptblock = $scriptblock
-        $this.isEnabled = $isEnabled
-        $this.mitreID = "N/A"
-    }
-
-    enable(){
-        $this.isEnabled = $true
-    }
-
-    disable(){
-        $this.isEnabled = $false
-    }
-}
 
 function Build-Directories{
     if(!(test-path $outFolder)){
@@ -76,7 +49,7 @@ function Build-Directories{
     collector class etc.
 #>
 $scriptblock = {Get-ItemProperty "HKLM:\System\CurrentControlSet\services\TermService\Parameters\"}
-$datapoints.Add([DataPoint]::new("TerminalServicesDLL", $scriptblock, $true, "T1505.005")) | Out-Null
+$datapoints.Add([DataPoint]::new("TerminalServicesDLL", $scriptblock, $true, "T1505.005", [TechniqueCategory]::Uncategorized)) | Out-Null
 
 $scriptblock = {$(
     if(!(test-path HKU:)){
@@ -90,23 +63,23 @@ $scriptblock = {$(
     }
 )   
 }
-$datapoints.Add([DataPoint]::new("Screensaver", $scriptblock, $true, "T1546.002")) | Out-Null
+$datapoints.Add([DataPoint]::new("Screensaver", $scriptblock, $true, "T1546.002", [TechniqueCategory]::Uncategorized)) | Out-Null
 
 $scriptblock = {
     $(Get-WMIObject -Namespace root\Subscription -Class __EventFilter | Select-Object -Property __SERVER, __CLASS, EventNamespace, Name, Query;
     Get-WMIObject -Namespace root\Subscription -Class __EventConsumer | Select-Object -Property __SERVER, __CLASS, Name;
     Get-WMIObject -Namespace root\Subscription -Class __FilterToConsumerBinding | Select-Object -Property __server, __CLASS, consumer, filter) 
 } 
-$datapoints.Add([DataPoint]::new("WMIEventSubscription", $scriptblock, $true, "T1546.003")) | Out-Null
+$datapoints.Add([DataPoint]::new("WMIEventSubscription", $scriptblock, $true, "T1546.003", [TechniqueCategory]::Uncategorized)) | Out-Null
 
 $scriptblock = {(Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Netsh')}
-$datapoints.Add([DataPoint]::new("NetshHelperDLL", $scriptblock, $true, "T1546.007")) | Out-Null
+$datapoints.Add([DataPoint]::new("NetshHelperDLL", $scriptblock, $true, "T1546.007", [TechniqueCategory]::Uncategorized)) | Out-Null
 
 $scriptblock = {Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\*' | Select-Object DisableExeptionChainValidation,MitigationOptions,PSPath,PSChildName,PSComputerName}
-$datapoints.Add([DataPoint]::new("AccessibilityFeature", $scriptblock, $true, "T1546.008")) | Out-Null
+$datapoints.Add([DataPoint]::new("AccessibilityFeature", $scriptblock, $true, "T1546.008", [TechniqueCategory]::Uncategorized)) | Out-Null
 
 $scriptblock = {Test-Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\appcertdlls\'}
-$datapoints.Add([DataPoint]::new("AppCertDLLS", $scriptblock, $true, "T1546.009")) | Out-Null
+$datapoints.Add([DataPoint]::new("AppCertDLLS", $scriptblock, $true, "T1546.009", [TechniqueCategory]::Uncategorized)) | Out-Null
 
 $scriptblock = {$(
     Get-ItemProperty "HKLM:\Software\Microsoft\Windows NT\CurrentVersion\Windows\" -name AppInit_DLLs; 
@@ -121,13 +94,13 @@ $scriptblock = {$(
         Get-ItemProperty "HKU:\$User\Software\Wow6432Node\Microsoft\Windows NT\CurrentVersion\Windows\" -name AppInit_DLLs
     });
     $UserInstalls = $null;) | Where-Object {($_.DisplayName -ne $null) -and ($_.Publisher -ne $null)}}
-$datapoints.Add([DataPoint]::new("AppInitDLLS", $scriptblock, $true, "T1546.010")) | Out-Null
+$datapoints.Add([DataPoint]::new("AppInitDLLS", $scriptblock, $true, "T1546.010", [TechniqueCategory]::Uncategorized)) | Out-Null
 
 $scriptblock = {Get-WinEvent -FilterHashtable @{LogName='Microsoft-Windows-Kernel-ShimEngine/Operational';}  |Select-Object Message,TimeCreated,ProcessId,ThreadId}
-$datapoints.Add([DataPoint]::new("ApplicationShimming", $scriptblock, $true, "T1546.011")) | Out-Null
+$datapoints.Add([DataPoint]::new("ApplicationShimming", $scriptblock, $true, "T1546.011", [TechniqueCategory]::Uncategorized)) | Out-Null
 
 $scriptblock = {Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\*" -name Debugger -ErrorAction SilentlyContinue}
-$datapoints.Add([DataPoint]::new("ImageFileExecutionOptions", $scriptblock, $true, "T1546.012")) | Out-Null
+$datapoints.Add([DataPoint]::new("ImageFileExecutionOptions", $scriptblock, $true, "T1546.012", [TechniqueCategory]::Uncategorized)) | Out-Null
 
 $scriptblock = {
                 test-path $pshome\profile.ps1
@@ -136,13 +109,13 @@ $scriptblock = {
                 test-path "C:\Users\*\My Documents\microsoft.*.ps1"
              
              }
-$datapoints.Add([DataPoint]::new("PowershellProfile", $scriptblock, $true, "T1546.013")) | Out-Null
+$datapoints.Add([DataPoint]::new("PowershellProfile", $scriptblock, $true, "T1546.013", [TechniqueCategory]::Uncategorized)) | Out-Null
 
 $scriptblock = {get-itemproperty HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\ -name "Authentication Packages"}
-$datapoints.Add([DataPoint]::new("AuthenticationPackage", $scriptblock, $true, "T1547.002")) | Out-Null
+$datapoints.Add([DataPoint]::new("AuthenticationPackage", $scriptblock, $true, "T1547.002", [TechniqueCategory]::Uncategorized)) | Out-Null
 
 $scriptblock = {Get-ItemProperty HKLM:\System\CurrentControlSet\Services\W32Time\TimeProviders\* | Select-Object dllname,pspath}
-$datapoints.Add([DataPoint]::new("TimeProviders", $scriptblock, $true, "T1547.003")) | Out-Null
+$datapoints.Add([DataPoint]::new("TimeProviders", $scriptblock, $true, "T1547.003", [TechniqueCategory]::Uncategorized)) | Out-Null
 
 $scriptblock = {
     $(
@@ -159,7 +132,7 @@ $scriptblock = {
         $UserInstalls = $null;)
 
 }
-$datapoints.Add([DataPoint]::new("WinlogonHelperDLL", $scriptblock, $true, "T1547.004")) | Out-Null
+$datapoints.Add([DataPoint]::new("WinlogonHelperDLL", $scriptblock, $true, "T1547.004", [TechniqueCategory]::Uncategorized)) | Out-Null
 
 $scriptblock = {
     $(
@@ -167,17 +140,17 @@ $scriptblock = {
         Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\OSConfig\" -Name "Security Packages" -ErrorAction SilentlyContinue
     )
 }
-$datapoints.Add([DataPoint]::new("SecuritySupportProvider", $scriptblock, $true, "T1547.005")) | Out-Null
+$datapoints.Add([DataPoint]::new("SecuritySupportProvider", $scriptblock, $true, "T1547.005", [TechniqueCategory]::Uncategorized)) | Out-Null
 
 $scriptblock = {
             Get-WinEvent -FilterHashtable @{ LogName='Security'; Id='4614';} -ErrorAction SilentlyContinue;
             Get-WinEvent -FilterHashtable @{ LogName='Security'; Id='3033';} -ErrorAction SilentlyContinue;
             Get-WinEvent -FilterHashtable @{ LogName='Security'; Id='3063';} -ErrorAction SilentlyContinue
             }
-$datapoints.Add([DataPoint]::new("LSASSDriver", $scriptblock, $true, "T1547.008")) | Out-Null
+$datapoints.Add([DataPoint]::new("LSASSDriver", $scriptblock, $true, "T1547.008", [TechniqueCategory]::Uncategorized)) | Out-Null
 
 $scriptblock = {Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\Print\Monitors\*" -name driver}
-$datapoints.Add([DataPoint]::new("PortMonitors", $scriptblock, $true, "T1547.010")) | Out-Null
+$datapoints.Add([DataPoint]::new("PortMonitors", $scriptblock, $true, "T1547.010", [TechniqueCategory]::Uncategorized)) | Out-Null
 
 $scriptblock = {
     $(
@@ -185,10 +158,10 @@ $scriptblock = {
         Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\Print\Environments\*\Print Processors\*"
     )    
 }
-$datapoints.Add([DataPoint]::new("PrintProcessors", $scriptblock, $true, "T1547.012")) | Out-Null
+$datapoints.Add([DataPoint]::new("PrintProcessors", $scriptblock, $true, "T1547.012", [TechniqueCategory]::Uncategorized)) | Out-Null
 
 $scriptblock = {get-itemproperty "HKLM:\SOFTWARE\Microsoft\Active Setup\Installed Components\*" | Select-Object "(default)",componentid,stubpath,pspath}
-$datapoints.Add([DataPoint]::new("ActiveSetup", $scriptblock, $true, "T1547.014")) | Out-Null
+$datapoints.Add([DataPoint]::new("ActiveSetup", $scriptblock, $true, "T1547.014", [TechniqueCategory]::Uncategorized)) | Out-Null
 
 $scriptblock = {
     $processes = Get-WmiObject win32_process
@@ -207,7 +180,7 @@ $scriptblock = {Get-ChildItem -Recurse c:\ProgramData\ | Select-Object -Property
 $datapoints.Add([DataPoint]::new("ProgramData", $scriptblock, $true)) | Out-Null
 
 $scriptblock = {Set-Location C:\Users; (Get-ChildItem -Recurse).fullname | Get-Item -Stream * | Where-Object{$_.stream -ne ':$DATA'} | Select-Object -Property Filename,Pscomputername,stream}
-$datapoints.Add([DataPoint]::new("AlternateDataStreams", $scriptblock, $true, "T1564.004")) | Out-Null
+$datapoints.Add([DataPoint]::new("AlternateDataStreams", $scriptblock, $true, "T1564.004", [TechniqueCategory]::Uncategorized)) | Out-Null
 
 # This one is hot garbage as well. 
 $scriptblock = {(Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\KnownDLLs\')}
@@ -218,13 +191,13 @@ $scriptblock = {
     (Get-ChildItem -path C:\Windows\System32\* -include *.dll | Get-AuthenticodeSignature | Where-Object Status -NE "Valid");
     (Get-ChildItem -path C:\Windows\* -include *.dll | Get-AuthenticodeSignature | Where-Object Status -NE "Valid")
 }
-$datapoints.Add([DataPoint]::new("DLLSearchOrderHijacking", $scriptblock, $true, "T1574.001")) | Out-Null
+$datapoints.Add([DataPoint]::new("DLLSearchOrderHijacking", $scriptblock, $true, "T1574.001", [TechniqueCategory]::Uncategorized)) | Out-Null
 
 $scriptblock = {Get-WinEvent -FilterHashtable @{ LogName='Microsoft-Windows-Bits-Client/Operational'; Id='59'} | Select-Object -Property message,pscomputername,id,logname,processid,userid,timecreated}
-$datapoints.Add([DataPoint]::new("BITSJobsLogs", $scriptblock, $true, "T1197")) | Out-Null
+$datapoints.Add([DataPoint]::new("BITSJobsLogs", $scriptblock, $true, "T1197", [TechniqueCategory]::Uncategorized)) | Out-Null
 
 $scriptblock = {Get-BitsTransfer -AllUsers}
-$datapoints.Add([DataPoint]::new("BITSTransfer", $scriptblock, $true, "T1197")) | Out-Null
+$datapoints.Add([DataPoint]::new("BITSTransfer", $scriptblock, $true, "T1197", [TechniqueCategory]::Uncategorized)) | Out-Null
 
 $scriptblock = {Get-WmiObject win32_bios | Select-Object -Property pscomputername,biosversion,caption,currentlanguage,manufacturer,name,serialnumber}
 $datapoints.Add([DataPoint]::new("SystemFirmware", $scriptblock, $true)) | Out-Null
@@ -273,7 +246,7 @@ $datapoints.Add([DataPoint]::new("AVProduct", $scriptblock, $true)) | Out-Null
 
 # This lil guy needs to be straight rippin from the registry and manually parsing.
 $scriptblock = {Get-WmiObject win32_service | Select-Object -Property PSComputerName,caption,description,pathname,processid,startname,state}
-$datapoints.Add([DataPoint]::new("Services", $scriptblock, $true, "T1543.003")) | Out-Null
+$datapoints.Add([DataPoint]::new("Services", $scriptblock, $true, "T1543.003", [TechniqueCategory]::Uncategorized)) | Out-Null
 
 $scriptblock = {Get-WindowsOptionalFeature -Online -FeatureName microsoftwindowspowershellv2 | Select-Object -Property PSComputerName,FeatureName,State,LogPath}
 $datapoints.Add([DataPoint]::new("PowerShellVersion", $scriptblock, $true)) | Out-Null
@@ -412,7 +385,7 @@ $scriptblock = {
     }
     $parsedTasks
 }
-$datapoints.Add([DataPoint]::new("ScheduledTasks", $scriptblock, $true, "T1053.005 ")) | Out-Null
+$datapoints.Add([DataPoint]::new("ScheduledTasks", $scriptblock, $true, "T1053.005", [TechniqueCategory]::Uncategorized)) | Out-Null
 
 $scriptblock = {Get-ChildItem "C:\Windows\Prefetch"}
 $datapoints.Add([DataPoint]::new("PrefetchListing", $scriptblock, $true)) | Out-Null
@@ -586,7 +559,7 @@ $scriptblock = {
                 }
                                  
             }
-$datapoints.Add([DataPoint]::new("PortProxies", $scriptblock, $true, "T1090")) | Out-Null
+$datapoints.Add([DataPoint]::new("PortProxies", $scriptblock, $true, "T1090", [TechniqueCategory]::Uncategorized)) | Out-Null
 
 $scriptblock = {(Get-ItemProperty HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\*\NonPackaged\*)}
 $datapoints.Add([DataPoint]::new("CapabilityAccessManager", $scriptblock, $true)) | Out-Null
@@ -624,7 +597,7 @@ $scriptblock = {get-winevent -FilterHashtable @{LogName='Microsoft-Windows-CodeI
 $datapoints.Add([DataPoint]::new("CodeIntegrityLogs", $scriptblock, $true)) | Out-Null
 
 $scriptblock = {get-winevent -FilterHashtable @{LogName='Security';} | Where-Object{$_.id -eq 1102} | Select-Object TimeCreated, Id, Message}
-$datapoints.Add([DataPoint]::new("SecurityLogCleared", $scriptblock, $true, "T1070.001")) | Out-Null
+$datapoints.Add([DataPoint]::new("SecurityLogCleared", $scriptblock, $true, "T1070.001", [TechniqueCategory]::Uncategorized)) | Out-Null
 
 $scriptblock = {
     $(
@@ -636,7 +609,7 @@ $scriptblock = {
         Get-ItemProperty "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Cryptography\Providers\Trust\FinalPolicy\*" -name '$DLL', '$Function'
     )
 }
-$datapoints.Add([DataPoint]::new("SIPandTrustProviderHijacking", $scriptblock, $true, "T1553.003")) | Out-Null
+$datapoints.Add([DataPoint]::new("SIPandTrustProviderHijacking", $scriptblock, $true, "T1553.003", [TechniqueCategory]::Uncategorized)) | Out-Null
 
 $scriptblock = {
                 $regexa = '.+Domain="(.+)",Name="(.+)"$';
@@ -722,6 +695,7 @@ $scriptblock = {
                     HKLMRun32 = [String]($(if(Test-Path 'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Run\'){  Get-ItemProperty 'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\Run\'}))
                     HKLMRunOnce = [String]($(if(Test-Path 'HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce\'){  Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnce\'}))
                     HKLMRunOnce32 = [String]($(if(Test-Path 'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\RunOnce\'){  Get-ItemProperty 'HKLM:\Software\WOW6432Node\Microsoft\Windows\CurrentVersion\RunOnce\'}))
+                    HKLMRunOnceEx = [String]($(if(Test-Path 'HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnceEx\'){  Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\RunOnceEx\'}))
                     HKLMPolicyRun = [String]($(if(Test-Path 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\Run'){  Get-ItemProperty 'HKLM:\Software\Microsoft\Windows\CurrentVersion\Policies\Explorer\Run'}))
                     HKLMBootExecute = [string]($(if(Test-Path "HKLM:\system\CurrentControlSet\Control\Session Manager\"){ Get-ItemProperty "HKLM:\system\CurrentControlSet\Control\Session Manager\"}))
                     HKLMRunServicesOnce = [string]($(if(Test-Path "HKLM:\Software\Microsoft\Windows\CurrentVersion\RunServicesOnce\"){ Get-ItemProperty "HKLM:\Software\Microsoft\Windows\CurrentVersion\RunServicesOnce\"}))
@@ -776,7 +750,7 @@ $scriptblock = {
                 $registry
         
             }
-$datapoints.Add([DataPoint]::new("RegistryRunKeys", $scriptblock, $true, "T1547.001")) | Out-Null
+$datapoints.Add([DataPoint]::new("RegistryRunKeys", $scriptblock, $true, "T1547.001", [TechniqueCategory]::Uncategorized)) | Out-Null
 
 function WaitFor-Jobs{
     while((get-job | Where-Object state -eq "Running" |Measure).Count -ne 0){
