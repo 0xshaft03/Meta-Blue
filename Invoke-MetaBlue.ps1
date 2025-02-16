@@ -22,49 +22,14 @@ function Invoke-MetaBlue {
 
     [CmdletBinding(DefaultParameterSetName = 'LocalCollect')]
     param(
-
-        [Parameter(ParameterSetName = 'RemoteCollect')]
-        [Parameter(ParameterSetName = 'LocalCollect')]
-        [ValidateSet('Light', 'Medium', 'Heavy', 'Dreadnought', 'Custom')]
-        [string]$CollecterSize = 'Light',
-
-        [Parameter(ParameterSetName = 'RemoteCollect')]
-        [Parameter(ParameterSetName = 'Enumeration')]
-        [switch]$Enumerate,
-
-        [Parameter(ParameterSetName = 'Enumeration')]
-        [ValidateNotNullOrEmpty()]
-        [string]$Subnet,
-
-        [Parameter(ParameterSetName = 'RemoteCollect')]
-        [ValidateNotNullOrEmpty()]
-        [ValidateSet('ActiveDirectoryComputers', 'TextFile', 'CSVFile')]
-        [string]$ComputerSet,
-
-        [Parameter(Mandatory)]
-        [string]$OutFolder
+        
     )
     BEGIN {
-        if($Null == $ComputerSet){
-            
-        }
-        if($LightCollecter){
-
-        }
-        elseif($MediumCollecter){
-
-        }
-        elseif($HeavyCollecter){
-
-        }
-        elseif($DreadnoughtCollecter){
-
-        }
+        
     
     }
     PROCESS {
-        Write-Host "[+] Collecting from $Computername"
-        Write-Verbose "its super neat"
+        
     }
     END {
 
