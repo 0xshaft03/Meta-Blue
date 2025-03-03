@@ -15,12 +15,13 @@
     
 #>
 
+
 $timestamp = (get-date).Tostring("yyyy_MM_dd_hh_mm_ss")
 
 <#
     Define the root directory for results. CHANGE THIS TO BE WHEREVER YOU WANT.
 #>
-$global:metaBlueFolder = "C:\Meta-Blue\"
+$global:metaBlueFolder = "C:\Users\amhen\programming\PowerShell\Meta-Blue\"
 $global:outFolder = "$metaBlueFolder\$timestamp"
 #$outFolder = "$home\desktop\collection\$timestamp"
 $global:rawFolder = "$outFolder\raw"
@@ -137,7 +138,7 @@ function Build-Sessions{
                 #if(($node.hostname -ne "") -and ($node.operatingsystem -like "*windows*") -and (!$excludedHosts.hostname.Contains($node.hostname))){
                 if(($node.hostname -ne "") -and ($node.operatingsystem -like "*windows*")){
                     Write-host "Starting PSSession on" $node.hostname
-                    New-pssession -computername $node.hostname -name $node.hostname -SessionOption (New-PSSessionOption -NoMachineProfile -MaxConnectionRetryCount 5) -ThrottleLimit 100| out-null
+                    New-pssession -computername $node.hostname -name $node.hostname -SessionOption (New-PSSessionOption -NoMachineProfile -MaxConnectionRetryCount 5) -ThrottleLimit 100 | out-null
                 }
             }
         }
@@ -1542,9 +1543,11 @@ function Collect($dp){
         $Task = $Sender.name;
         if($Sender.state -eq "Completed"){
 
-            $jobcontent = Receive-Job $Sender | Select-Object -Property *,CompName
+            $jobcontent = Receive-Job $Sender | Select-Object -Property *,CompName,CollectionTime
+            $jobcontent
             foreach($j in $jobcontent){
                 $j.CompName = $Event.MessageData
+                $j.CollectionTime = (get-date -UFormat "%s").ToString()
             }
             $jobcontent | export-csv -force -append -NoTypeInformation -path "$rawFolder\Host_$Task.csv" | out-null;
 
@@ -1659,7 +1662,7 @@ function Show-TitleMenu{
            }
 
             'q' {
-                break 
+                return $null 
            } 
 
      }break
@@ -1846,4 +1849,137 @@ function Show-MemoryDumpMenu{
     }until ($selection -eq 'q')
 }
 
-show-titlemenu 
+if (!$args) {
+    show-titlemenu
+}
+else {
+    switch ($args[0]) {
+        "-enum" {
+            switch ($args[1]){
+                "-default" {
+                    Write-Host -ForegroundColor Green "Enum with no file, running scan on prefered network."
+                    $defIP = Get-NetIPAddress | Where-Object ValidLifetime -lt "1"
+                    $ips = Get-SubnetRange -IPAddress $defIP.IPAddress -CIDR $defIP.PrefixLength
+                    Enumerator($ips)
+                }
+                "-addressfile" {
+                    Write-Host -ForegroundColor Green "Enum with file"
+                    if (!$args[2]) {
+                        Write-Host "No IP address file provided.  See help for more information."
+                        break
+                    }
+                    $PTL = [System.Collections.arraylist]@()
+                    $ptlFile = $args[2]
+                    if($ptlFile -like "*.csv"){
+                        $ptlimport = import-csv $ptlFile
+                        foreach($ip in $ptlimport){$PTL.Add($ip.ipaddress) | out-null}
+                        Enumerator($PTL)
+                    }if($ptlFile -like "*.txt"){
+                        $PTL = Get-Content $ptlFile
+                        Enumerator($PTL)
+                    }
+                }
+                "-network" {
+                    Write-Host -ForegroundColor Green "Enum with address[es]"
+                    if (!$args[2]) {
+                        Write-Host "No IP addresses provided.  See help for more information."
+                        break
+                    }
+                    for ($i = 2; $i -lt $args.Length; $i++){
+                        $ips += Get-SubnetRange -IPAddress $args[$i].split"/"[0] -CIDR $args[$i].split"/"[1]
+                    }
+                    Enumerator($ips)
+                }
+                "-help" {
+                    Write-Host "Usage: Meta-Blue -enum -default                    : Preforms default scan on currently connected network."
+                    Write-Host "       Meta-Blue -enum -addressfile <path to file> : Preforms scan on the addresses in the file."
+                    Write-Host "       Meta-Blue -enum -network <ip address>/<CIDR>: Preforms scan on the network[s]. (Accepts multiple networks, separate with a space)"
+                    Write-Host "       Meta-Blue -enum -help                        : Show this help message."
+                }
+                default {
+                    Write-Host "Usage: Meta-Blue -enum -default                    : Preforms default scan on currently connected network."
+                    Write-Host "       Meta-Blue -enum -addressfile <path to file> : Preforms scan on the addresses in the file."
+                    Write-Host "       Meta-Blue -enum -network <ip address>/<CIDR>: Preforms scan on the network[s]. (Accepts multiple networks, separate with a space)"
+                    Write-Host "       Meta-Blue -enum -help                        : Show this help message."
+                }
+            }
+        }
+        "-coll" {
+            switch ($args[1]){
+                "-default" {
+                    Write-Host -ForegroundColor Green "Enum with no file, running scan on prefered network."
+                    $defIP = Get-NetIPAddress | Where-Object ValidLifetime -lt "1"
+                    $ips = Get-SubnetRange -IPAddress $defIP.IPAddress -CIDR $defIP.PrefixLength
+                    Enumerator($ips)
+                }
+                "-addressfile" {
+                    Write-Host -ForegroundColor Green "Enum with file"
+                    if (!$args[2]) {
+                        Write-Host "No IP address file provided.  See help for more information."
+                        break
+                    }
+                    $PTL = [System.Collections.arraylist]@()
+                    $ptlFile = $args[2]
+                    if($ptlFile -like "*.csv"){
+                        $ptlimport = import-csv $ptlFile
+                        foreach($ip in $ptlimport){$PTL.Add($ip.ipaddress) | out-null}
+                        Enumerator($PTL)
+                    }if($ptlFile -like "*.txt"){
+                        $PTL = Get-Content $ptlFile
+                        Enumerator($PTL)
+                    }
+                }
+                "-network" {
+                    Write-Host -ForegroundColor Green "Enum with address[es]"
+                    if (!$args[2]) {
+                        Write-Host "No IP addresses provided.  See help for more information."
+                        break
+                    }
+                    for ($i = 2; $i -lt $args.Length; $i++){
+                        $ips += Get-SubnetRange -IPAddress $args[$i].split"/"[0] -CIDR $args[$i].split"/"[1]
+                    }
+                    Enumerator($ips)
+                }
+                "-ad" { 
+                    $adEnumeration = $true
+                    $iparray = (Get-ADComputer -filter *).dnshostname
+                    Enumerator($iparray)
+                }
+                "-help" {
+                    Write-Host "Usage: Meta-Blue -coll -default                    : Preforms default scan on currently connected network."
+                    Write-Host "       Meta-Blue -coll -addressfile <path to file> : Preforms scan on the addresses in the file."
+                    Write-Host "       Meta-Blue -coll -network <ip address>/<CIDR>: Preforms scan on the network[s]. (Accepts multiple networks, separate with a space)"
+                    Write-Host "       Meta-Blue -coll -ad                         : Checks Active Directory and scans and collects artefacts from there."
+                    Write-Host "       Meta-Blue -coll -help                       : Show this help message."
+                }
+                default {
+                    Write-Host "Usage: Meta-Blue -coll -default                    : Preforms default scan on currently connected network and collects artefacts."
+                    Write-Host "       Meta-Blue -coll -addressfile <path to file> : Preforms scan on the addresses in the file and collects artefacts."
+                    Write-Host "       Meta-Blue -coll -network <ip address>/<CIDR>: Preforms scan on the network[s] and collects artefacts. (Accepts multiple networks, separate with a space)"
+                    Write-Host "       Meta-Blue -coll -ad                         : Checks Active Directory and scans and collects artefacts from there."
+                    Write-Host "       Meta-Blue -coll -help                       : Show this help message."
+                }
+            }
+        }
+        "-local" {
+            $localBox = $true
+            Meta-Blue
+        }
+        "-help" {
+            Write-Host "Usage: Meta-Blue (no args): Launches Meta-Blue in interactive mode."
+            Write-Host "       Meta-Blue -enum    : Launches in enumeration."
+            Write-Host "       Meta-Blue -coll    : Launches in collection."
+            Write-Host "       Meta-Blue -local   : Runs Meta-Blue against the local box."
+            Write-Host "       Meta-Blue -help    : Shows this help message."
+            Write-Host "-help can be used after the first argument to show help for that argument."
+        }
+        default {
+            Write-Host "Usage: Meta-Blue (no args): Launches Meta-Blue in interactive mode."
+            Write-Host "       Meta-Blue -enum    : Launches in enumeration."
+            Write-Host "       Meta-Blue -coll    : Launches in collection."
+            Write-Host "       Meta-Blue -local   : Runs Meta-Blue against the local box."
+            Write-Host "       Meta-Blue -help    : Shows this help message."
+            Write-Host "-help can be used after the first argument to show help for that argument."
+        }
+    }
+}
