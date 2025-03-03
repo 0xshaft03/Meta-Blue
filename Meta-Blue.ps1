@@ -1544,7 +1544,6 @@ function Collect($dp){
         if($Sender.state -eq "Completed"){
 
             $jobcontent = Receive-Job $Sender | Select-Object -Property *,CompName,CollectionTime
-            $jobcontent
             foreach($j in $jobcontent){
                 $j.CompName = $Event.MessageData
                 $j.CollectionTime = (get-date -UFormat "%s").ToString()
