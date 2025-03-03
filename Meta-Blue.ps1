@@ -37,6 +37,7 @@ $jobTimeOutThreshold = 20
 $isRanAsSchedTask = $false
 $global:nodeList = [System.Collections.ArrayList]@()
 $datapoints = [System.Collections.ArrayList]@()
+$global:json = $args -contains "-json"
 
 class DataPoint {
     [string]$jobname
@@ -728,7 +729,12 @@ function Enumerator([System.Collections.ArrayList]$iparray) {
     <#
         Create the DnsMapper.csv
     #>
-    $nodeList.getEnumerator() | Select-Object -Property @{N='HostName';E={$_.hostname}},@{N='IPAddress';E={$_.IPAddress}},@{N='OperatingSystem';E={$_.OperatingSystem}},@{N='TTL';E={$_.TTL}} | Export-Csv -path "$outfolder\NodeList.csv" -NoTypeInformation
+    $nodes = $nodeList.getEnumerator() | Select-Object -Property @{N='HostName';E={$_.hostname}},@{N='IPAddress';E={$_.IPAddress}},@{N='OperatingSystem';E={$_.OperatingSystem}},@{N='TTL';E={$_.TTL}}
+    if (!$json) {
+        $nodes | Export-Csv -path "$outfolder\NodeList.csv" -NoTypeInformation
+    } else {
+        $nodes | ConvertTo-Json | out-file "$outfolder\NodeList.json"
+    } 
     Write-Host -ForegroundColor Green "[+]NodeList.csv created"
 
     Get-Job
@@ -1548,7 +1554,11 @@ function Collect($dp){
                 $j.CompName = $Event.MessageData
                 $j.CollectionTime = (get-date -UFormat "%s").ToString()
             }
-            $jobcontent | export-csv -force -append -NoTypeInformation -path "$rawFolder\Host_$Task.csv" | out-null;
+            if (!$json){
+                $jobcontent | export-csv -force -append -NoTypeInformation -path "$rawFolder\Host_$Task.csv" | out-null;
+            } else {
+                $jobcontent | ConvertTo-Json -Compress | Out-File -Append -FilePath "$rawFolder\Host_$Task.json" | out-null;
+            }
 
             if(!$Sender.HasMoreData){
                 Unregister-Event -subscriptionid $EventSubscriber.SubscriptionId -Force;
@@ -1559,12 +1569,20 @@ function Collect($dp){
         
         } 
         elseif($Sender.state -eq "Failed"){
-            $Sender | export-csv -Append -NoTypeInformation "$outFolder\failedjobs.csv"
+            if (!$json){
+                $Sender | export-csv -Append -NoTypeInformation "$outFolder\failedjobs.csv"
+            } else {
+                $Sender | ConvertTo-Json -Compress | Out-File -Append -FilePath "$outFolder\failedjobs.json"
+            }
             Remove-Job $job.id -force
         
         }
         elseif($Sender.state -eq "Disconnected"){
-            $Sender | export-csv -Append -NoTypeInformation "$outFolder\failedjobs.csv"
+            if (!$json){
+                $Sender | export-csv -Append -NoTypeInformation "$outFolder\failedjobs.csv"
+            } else {
+                $Sender | ConvertTo-Json -Compress | Out-File -Append -FilePath "$outFolder\failedjobs.json"
+            }
             Remove-Job $job.id -force
         
         }
@@ -1848,13 +1866,15 @@ function Show-MemoryDumpMenu{
     }until ($selection -eq 'q')
 }
 
-if (!$args) {
+[array]$uArgs = $args | Where-Object { $_ -ne "-json" }
+
+if (!$uArgs) {
     show-titlemenu
 }
 else {
-    switch ($args[0]) {
+    switch ($uArgs[0]) {
         "-enum" {
-            switch ($args[1]){
+            switch ($uArgs[1]){
                 "-default" {
                     Write-Host -ForegroundColor Green "Enum with no file, running scan on prefered network."
                     $defIP = Get-NetIPAddress | Where-Object ValidLifetime -lt "1"
@@ -1863,12 +1883,12 @@ else {
                 }
                 "-addressfile" {
                     Write-Host -ForegroundColor Green "Enum with file"
-                    if (!$args[2]) {
+                    if (!$uArgs[2]) {
                         Write-Host "No IP address file provided.  See help for more information."
                         break
                     }
                     $PTL = [System.Collections.arraylist]@()
-                    $ptlFile = $args[2]
+                    $ptlFile = $uArgs[2]
                     if($ptlFile -like "*.csv"){
                         $ptlimport = import-csv $ptlFile
                         foreach($ip in $ptlimport){$PTL.Add($ip.ipaddress) | out-null}
@@ -1880,12 +1900,12 @@ else {
                 }
                 "-network" {
                     Write-Host -ForegroundColor Green "Enum with address[es]"
-                    if (!$args[2]) {
+                    if (!$uArgs[2]) {
                         Write-Host "No IP addresses provided.  See help for more information."
                         break
                     }
-                    for ($i = 2; $i -lt $args.Length; $i++){
-                        $ips += Get-SubnetRange -IPAddress $args[$i].split"/"[0] -CIDR $args[$i].split"/"[1]
+                    for ($i = 2; $i -lt $uArgs.Length; $i++){
+                        $ips += Get-SubnetRange -IPAddress $uArgs[$i].split"/"[0] -CIDR $uArgs[$i].split"/"[1]
                     }
                     Enumerator($ips)
                 }
@@ -1904,7 +1924,7 @@ else {
             }
         }
         "-coll" {
-            switch ($args[1]){
+            switch ($uArgs[1]){
                 "-default" {
                     Write-Host -ForegroundColor Green "Enum with no file, running scan on prefered network."
                     $defIP = Get-NetIPAddress | Where-Object ValidLifetime -lt "1"
@@ -1913,12 +1933,12 @@ else {
                 }
                 "-addressfile" {
                     Write-Host -ForegroundColor Green "Enum with file"
-                    if (!$args[2]) {
+                    if (!$uArgs[2]) {
                         Write-Host "No IP address file provided.  See help for more information."
                         break
                     }
                     $PTL = [System.Collections.arraylist]@()
-                    $ptlFile = $args[2]
+                    $ptlFile = $uArgs[2]
                     if($ptlFile -like "*.csv"){
                         $ptlimport = import-csv $ptlFile
                         foreach($ip in $ptlimport){$PTL.Add($ip.ipaddress) | out-null}
@@ -1930,12 +1950,12 @@ else {
                 }
                 "-network" {
                     Write-Host -ForegroundColor Green "Enum with address[es]"
-                    if (!$args[2]) {
+                    if (!$uArgs[2]) {
                         Write-Host "No IP addresses provided.  See help for more information."
                         break
                     }
-                    for ($i = 2; $i -lt $args.Length; $i++){
-                        $ips += Get-SubnetRange -IPAddress $args[$i].split"/"[0] -CIDR $args[$i].split"/"[1]
+                    for ($i = 2; $i -lt $uArgs.Length; $i++){
+                        $ips += Get-SubnetRange -IPAddress $uArgs[$i].split"/"[0] -CIDR $uArgs[$i].split"/"[1]
                     }
                     Enumerator($ips)
                 }
@@ -1945,9 +1965,9 @@ else {
                     Enumerator($iparray)
                 }
                 "-help" {
-                    Write-Host "Usage: Meta-Blue -coll -default                    : Preforms default scan on currently connected network."
-                    Write-Host "       Meta-Blue -coll -addressfile <path to file> : Preforms scan on the addresses in the file."
-                    Write-Host "       Meta-Blue -coll -network <ip address>/<CIDR>: Preforms scan on the network[s]. (Accepts multiple networks, separate with a space)"
+                    Write-Host "Usage: Meta-Blue -coll -default                    : Preforms default scan on currently connected network and collects artefacts."
+                    Write-Host "       Meta-Blue -coll -addressfile <path to file> : Preforms scan on the addresses in the file and collects artefacts."
+                    Write-Host "       Meta-Blue -coll -network <ip address>/<CIDR>: Preforms scan on the network[s] and collects artefacts. (Accepts multiple networks, separate with a space)"
                     Write-Host "       Meta-Blue -coll -ad                         : Checks Active Directory and scans and collects artefacts from there."
                     Write-Host "       Meta-Blue -coll -help                       : Show this help message."
                 }
@@ -1971,6 +1991,7 @@ else {
             Write-Host "       Meta-Blue -local   : Runs Meta-Blue against the local box."
             Write-Host "       Meta-Blue -help    : Shows this help message."
             Write-Host "-help can be used after the first argument to show help for that argument."
+            Write-Host "Add `"-json`" anywhere within the arguments to output the results in JSON format."
         }
         default {
             Write-Host "Usage: Meta-Blue (no args): Launches Meta-Blue in interactive mode."
@@ -1979,6 +2000,7 @@ else {
             Write-Host "       Meta-Blue -local   : Runs Meta-Blue against the local box."
             Write-Host "       Meta-Blue -help    : Shows this help message."
             Write-Host "-help can be used after the first argument to show help for that argument."
+            Write-Host "Add `"-json`" anywhere within the arguments to output the results in JSON format."
         }
     }
 }
