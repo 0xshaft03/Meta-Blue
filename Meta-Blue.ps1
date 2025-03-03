@@ -21,7 +21,7 @@ $timestamp = (get-date).Tostring("yyyy_MM_dd_hh_mm_ss")
 <#
     Define the root directory for results. CHANGE THIS TO BE WHEREVER YOU WANT.
 #>
-$global:metaBlueFolder = "C:\Users\amhen\programming\PowerShell\Meta-Blue\"
+$global:metaBlueFolder = "C:\Meta-Blue\"
 $global:outFolder = "$metaBlueFolder\$timestamp"
 #$outFolder = "$home\desktop\collection\$timestamp"
 $global:rawFolder = "$outFolder\raw"
