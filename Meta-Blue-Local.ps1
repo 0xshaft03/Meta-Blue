@@ -154,7 +154,13 @@ $scriptblock = {
             Get-WinEvent -FilterHashtable @{ LogName='Security'; Id='3033';} -ErrorAction SilentlyContinue;
             Get-WinEvent -FilterHashtable @{ LogName='Security'; Id='3063';} -ErrorAction SilentlyContinue
             }
-$datapoints.Add([DataPoint]::new("LSASSDriver", $scriptblock, $true, "T1547.008", [TechniqueCategory]::Uncategorized)) | Out-Null
+$datapoints.Add([DataPoint]::new("LSASSDriverWindowsEvents", $scriptblock, $true, "T1547.008", [TechniqueCategory]::Uncategorized)) | Out-Null
+
+$scriptblock = {
+        Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\NTDS\" -Name LsaDbExtPt -ErrorAction SilentlyContinue;
+        Get-ItemProperty -Path "HKLM:\SYSTEM\CurrentControlSet\Services\NTDS\" -Name DirectoryServiceExtPt -ErrorAction SilentlyContinue;
+    }
+$datapoints.Add([DataPoint]::new("LSASSDriverRegistry", $scriptblock, $true, "T1547.008", [TechniqueCategory]::Uncategorized)) | Out-Null
 
 $scriptblock = {Get-ItemProperty "HKLM:\SYSTEM\CurrentControlSet\Control\Print\Monitors\*" -name driver}
 $datapoints.Add([DataPoint]::new("PortMonitors", $scriptblock, $true, "T1547.010", [TechniqueCategory]::Uncategorized)) | Out-Null
