@@ -15,7 +15,8 @@
     
 #>
 
-
+using module .\Modules\DataPoint.psm1
+using module .\Modules\Node.psm1
 $timestamp = (get-date).Tostring("yyyy_MM_dd_hh_mm_ss")
 
 <#
@@ -1296,6 +1297,16 @@ $datapoints.Add([DataPoint]::new("MpComputerStatus", $scriptblock, $true)) | Out
 
 $scriptblock = {Get-MpPreference}
 $datapoints.Add([DataPoint]::new("MpPreference", $scriptblock, $true)) | Out-Null
+
+$scriptblock = {Get-MpPreference | Select-Object -ExpandProperty ExclusionPath}
+$datapoints.Add([DataPoint]::new("DefenderExclusionPath", $scriptblock, $true, "T1562.001", [TechniqueCategory]::ImpairDefenses)) | Out-Null
+
+$scriptblock = {Get-MpPreference | Select-Object -ExpandProperty ExclusionIpAddress}
+$datapoints.Add([DataPoint]::new("DefenderExclusionIpAddress", $scriptblock, $true, "T1562.001", [TechniqueCategory]::ImpairDefenses)) | Out-Null
+
+$scriptblock = {Get-MpPreference | Select-Object -ExpandProperty ExclusionExtension}
+$datapoints.Add([DataPoint]::new("DefenderExclusionExtension", $scriptblock, $true, "T1562.001", [TechniqueCategory]::ImpairDefenses)) | Out-Null
+
 
 # I need to go through the keys and pullout the actual dlls and stuff for the com objects.
 $scriptblock = {Get-ChildItem HKLM:\Software\Classes -ea 0| Where-Object {$_.PSChildName -match '^\w+\.\w+$' -and(Get-ItemProperty "$($_.PSPath)\CLSID" -ea 0)} | Select-Object Name}

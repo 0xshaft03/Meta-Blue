@@ -2,6 +2,7 @@ enum TechniqueCategory {
     Uncategorized
     Persistence
     LateralMovement
+    ImpairDefenses
 }
 class DataPoint {
     [string]$jobname

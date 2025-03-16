@@ -765,6 +765,15 @@ $scriptblock = {
             }
 $datapoints.Add([DataPoint]::new("RegistryRunKeys", $scriptblock, $true, "T1547.001", [TechniqueCategory]::Uncategorized)) | Out-Null
 
+$scriptblock = {Get-MpPreference | Select-Object -ExpandProperty ExclusionPath}
+$datapoints.Add([DataPoint]::new("DefenderExclusionPath", $scriptblock, $true, "T1562.001", [TechniqueCategory]::ImpairDefenses)) | Out-Null
+
+$scriptblock = {Get-MpPreference | Select-Object -ExpandProperty ExclusionIpAddress}
+$datapoints.Add([DataPoint]::new("DefenderExclusionIpAddress", $scriptblock, $true, "T1562.001", [TechniqueCategory]::ImpairDefenses)) | Out-Null
+
+$scriptblock = {Get-MpPreference | Select-Object -ExpandProperty ExclusionExtension}
+$datapoints.Add([DataPoint]::new("DefenderExclusionExtension", $scriptblock, $true, "T1562.001", [TechniqueCategory]::ImpairDefenses)) | Out-Null
+
 function WaitFor-Jobs{
     while((get-job | Where-Object state -eq "Running" |Measure).Count -ne 0){
             get-job | Format-Table -RepeatHeader
