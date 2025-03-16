@@ -68,15 +68,6 @@ function Invoke-Collection {
         elseif($CollecterSize -eq "Dreadnought"){
             Write-Verbose "Starting Dreadnought Collector"
         }
-        $scriptblock = {
-            $processes = Get-WmiObject win32_process
-            $processes | ForEach-Object{
-                Add-Member -InputObject $_ -Name Hash -Value (Get-FileHash -Path $_.ExecutablePath -ea SilentlyContinue).hash -MemberType NoteProperty 
-            } 
-            $processes | Select-Object processname,handles,path.pscomputernamename,commandline,creationdate,executablepath,parentprocessid,processid,Hash
-        }
-        $datapoints.Add([DataPoint]::new("Process", $scriptblock, $true)) | Out-Null
-        
     
     }
     PROCESS {
@@ -127,12 +118,16 @@ function Invoke-Collection {
 
             while($true){
                 $jobs = Get-Job
-                $events = Get-Event
-                if($null -ne $jobs){
+                
+                if($null -ne $jobs) {
+
                     $jobs | Format-Table -RepeatHeader
                     Start-Sleep -Seconds 10
+
                 } else {
+
                     break
+
                 }
                 
             }

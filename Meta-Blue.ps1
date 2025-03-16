@@ -39,36 +39,8 @@ $global:nodeList = [System.Collections.ArrayList]@()
 $datapoints = [System.Collections.ArrayList]@()
 $global:json = $args -contains "-json"
 
-class DataPoint {
-    [string]$jobname
-    [scriptblock]$scriptblock
-    [bool]$isEnabled
-    [string]$mitreID
-
-    DataPoint($jobname, $scriptblock, $isEnabled, $mitreID){
-        $this.jobname = $jobname
-        $this.scriptblock = $scriptblock
-        $this.isEnabled = $isEnabled
-        $this.mitreID = $mitreID
-    }
-
-    DataPoint($jobname, $scriptblock, $isEnabled){
-        $this.jobname = $jobname
-        $this.scriptblock = $scriptblock
-        $this.isEnabled = $isEnabled
-        $this.mitreID = "N/A"
-    }
-
-    enable(){
-        $this.isEnabled = $true
-    }
-
-    disable(){
-        $this.isEnabled = $false
-    }
- }
-
-
+Import-Module .\Modules\DataPoint.psm1
+Import-Module .\Modules\Node.psm1
  class ProcessCreateEventLog {
     [string]$SID
     [string]$accountName
@@ -77,25 +49,6 @@ class DataPoint {
     $ppid
     [string]$parentName
  }
-
- class Node {
-    [string]$Hostname
-    [string]$IPAddress
-    [string]$OperatingSystem
-    [int]$TTL
-    [System.Management.Automation.Runspaces.PSSession]$Session
-  
-    Node() {
-      $this.Hostname = ""
-      $this.IPAddress = ""
-      $this.OperatingSystem = ""
-      $this.TTL = 0
-    }
-  
-  
-}
-
-
 
 function Build-Sessions{
     if(!$localBox){
