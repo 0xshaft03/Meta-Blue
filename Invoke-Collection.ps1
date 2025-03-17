@@ -16,25 +16,33 @@ function Invoke-Collection {
 .NOTES
     Author: 0xshaft03
 #>
-[CmdletBinding(DefaultParameterSetName = 'LocalCollect')]
+[CmdletBinding(DefaultParameterSetName = 'LocalCollection')]
     param(
+        [Parameter(ParameterSetName = 'LocalCollection')]
+        [switch]$LocalCollection,
+
+        [Parameter(ParameterSetName = 'RemoteCollection')]
+        [switch]$RemoteCollection,
+
         [ValidateSet('TerminalServicesDLL','Screensaver','WMIEventSubscription','NetshHelperDLL','AccessibilityFeature',
         'DefenderExclusionPath','DefenderExclusionIpAddress','DefenderExclusionExtension','Processes')]
         [string[]]$Collect,
 
+        [Parameter(ParameterSetName = 'LocalCollection')]
+        [Parameter(ParameterSetName = 'RemoteCollection')]
         [ValidateSet('Uncategorized','Persistence','LateralMovement','ImpairDefenses')]
         [string[]]$CollectCategory,
 
-        [Parameter(ParameterSetName = 'RemoteCollect')]
+        [Parameter(ParameterSetName = 'RemoteCollection')]
         [Parameter(ParameterSetName = 'Enumeration')]
         [switch]$Enumerate,
 
-        [Parameter(ParameterSetName = 'RemoteCollect')]
+        [Parameter(ParameterSetName = 'RemoteCollection')]
         [Parameter(ParameterSetName = 'Enumeration')]
         [ValidateNotNullOrEmpty()]
         [string]$Subnet,
 
-        [Parameter(ParameterSetName = 'RemoteCollect')]
+        [Parameter(ParameterSetName = 'RemoteCollection')]
         [Parameter(ParameterSetName = 'Enumeration')]
         [ValidateNotNullOrEmpty()]
         [ValidateSet('ActiveDirectoryComputers', 'TextFile', 'CSVFile')]
@@ -76,6 +84,7 @@ function Invoke-Collection {
     
     }
     PROCESS {
+        Write-Debug "ParameterSetName = $($PSCmdlet.ParameterSetName)"
         if($PSCmdlet.ParameterSetName -eq "LocalCollect"){
             Write-Verbose "Starting the Local Collecter"
 
@@ -112,14 +121,15 @@ function Invoke-Collection {
                 }
             
             }
-            
-            #foreach($datapoint in $datapoints){
-            #    if($datapoint.isEnabled){
-            foreach($datapoint in $datapoints){
-                if($Collect.Contains($datapoint.jobname)){
-                    Register-ObjectEvent -MessageData $env:COMPUTERNAME -InputObject (Start-Job -Name $datapoint.jobname -ScriptBlock $datapoint.scriptblock) -EventName StateChanged -Action $action | out-null
+            Write-Verbose "Collecting: $datapoints"
+            if($Collect){
+                foreach($datapoint in $datapoints){
+                    if($Collect.Contains($datapoint.jobname)){
+                        Register-ObjectEvent -MessageData $env:COMPUTERNAME -InputObject (Start-Job -Name $datapoint.jobname -ScriptBlock $datapoint.scriptblock) -EventName StateChanged -Action $action | out-null
+                    }
                 }
-            }
+            } 
+            
             
 
             while($true){
