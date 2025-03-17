@@ -24,12 +24,12 @@ function Invoke-Collection {
         [Parameter(ParameterSetName = 'RemoteCollection')]
         [switch]$RemoteCollection,
 
+        [switch]$CollectAll,
+
         [ValidateSet('TerminalServicesDLL','Screensaver','WMIEventSubscription','NetshHelperDLL','AccessibilityFeature',
         'DefenderExclusionPath','DefenderExclusionIpAddress','DefenderExclusionExtension','Processes')]
         [string[]]$Collect,
 
-        [Parameter(ParameterSetName = 'LocalCollection')]
-        [Parameter(ParameterSetName = 'RemoteCollection')]
         [ValidateSet('Uncategorized','Persistence','LateralMovement','ImpairDefenses')]
         [string[]]$CollectCategory,
 
@@ -49,7 +49,10 @@ function Invoke-Collection {
         [string]$ComputerSet,
         
         [Parameter()]
-        [string]$OutFolder = "C:\Meta-Blue"
+        [string]$OutFolder = "C:\Meta-Blue",
+
+        [ValidateSet('csv','json')]
+        [string]$OutputFormat
     )
     BEGIN {
         $timestamp = (get-date).Tostring("yyyy_MM_dd_hh_mm_ss")
@@ -68,24 +71,25 @@ function Invoke-Collection {
             Write-Verbose "Creating $OutFolder\$timestamp\Anomalies"
             new-item -itemtype directory -path "$outFolder\$timestamp\Anomalies" -Force | out-null  
         }
-
-        if($CollecterSize -eq "Light"){
-            Write-Verbose "Starting Light Collector"
-        }
-        elseif($CollecterSize -eq "Medium"){
-            Write-Verbose "Starting Medium Collector"
-        }
-        elseif($CollecterSize -eq "Heavy"){
-            Write-Verbose "Starting Heavy Collector"
-        }
-        elseif($CollecterSize -eq "Dreadnought"){
-            Write-Verbose "Starting Dreadnought Collector"
-        }
     
     }
     PROCESS {
         Write-Debug "ParameterSetName = $($PSCmdlet.ParameterSetName)"
-        if($PSCmdlet.ParameterSetName -eq "LocalCollect"){
+
+        if($CollectAll){
+            Write-Verbose "Collecting Everything!"
+        }
+        elseif($Collect){
+            Write-Verbose "Collecting: $($datapoints.jobname)"
+        }
+        elseif($CollectCategory){
+            Write-Verbose "Collecting $CollectCategory"
+        }
+        elseif($CollecterSize -eq "Dreadnought"){
+            Write-Verbose "Starting Dreadnought Collector"
+        }
+
+        if($PSCmdlet.ParameterSetName -eq "LocalCollection"){
             Write-Verbose "Starting the Local Collecter"
 
             <#
@@ -128,8 +132,11 @@ function Invoke-Collection {
                         Register-ObjectEvent -MessageData $env:COMPUTERNAME -InputObject (Start-Job -Name $datapoint.jobname -ScriptBlock $datapoint.scriptblock) -EventName StateChanged -Action $action | out-null
                     }
                 }
-            } 
-            
+            } elseif ($CollectAll) {
+                foreach($datapoint in $datapoints){
+                    Register-ObjectEvent -MessageData $env:COMPUTERNAME -InputObject (Start-Job -Name $datapoint.jobname -ScriptBlock $datapoint.scriptblock) -EventName StateChanged -Action $action | out-null
+                }
+            }
             
 
             while($true){
