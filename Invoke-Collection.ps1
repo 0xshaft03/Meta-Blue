@@ -45,7 +45,7 @@ function Invoke-Collection {
     )
     BEGIN {
         $timestamp = (get-date).Tostring("yyyy_MM_dd_hh_mm_ss")
-        $datapoints = Create-DataPoints
+        $datapoints = New-DataPoints
         $global:rawFolder = "$OutFolder\$timestamp\Raw"
 
         if($Null -eq $ComputerSet){

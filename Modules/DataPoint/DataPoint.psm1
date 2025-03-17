@@ -39,7 +39,7 @@ class DataPoint {
     }
 }
 
-function Create-DataPoints(){
+function New-DataPoints(){
 
     <#
         Right now all of these are just out in the open.
@@ -93,7 +93,7 @@ function Create-DataPoints(){
             Get-ItemProperty "HKU:\$User\Software\Microsoft\Windows NT\CurrentVersion\Windows\" -name AppInit_DLLs;
             Get-ItemProperty "HKU:\$User\Software\Wow6432Node\Microsoft\Windows NT\CurrentVersion\Windows\" -name AppInit_DLLs
         });
-        $UserInstalls = $null;) | Where-Object {($_.DisplayName -ne $null) -and ($_.Publisher -ne $null)}}
+        $UserInstalls = $null;) | Where-Object {($null -ne $_.DisplayName) -and ($null -ne $_.Publisher)}}
     $datapoints.Add([DataPoint]::new("AppInitDLLS", $scriptblock, $true, "T1546.010", [TechniqueCategory]::Uncategorized)) | Out-Null
 
     $scriptblock = {Get-WinEvent -FilterHashtable @{LogName='Microsoft-Windows-Kernel-ShimEngine/Operational';}  |Select-Object Message,TimeCreated,ProcessId,ThreadId}
@@ -223,7 +223,7 @@ function Create-DataPoints(){
                     
                         };
                         $logonscriptObject.sid = $SID; 
-                        $logonscriptObject.haslogonscripts = !((Get-ItemProperty HKU:\$SID\Environment\).userinitmprlogonscript -eq $null); 
+                        $logonscriptObject.haslogonscripts = !($null -eq (Get-ItemProperty HKU:\$SID\Environment\).userinitmprlogonscript); 
                         $logonScriptsArrayList.add($logonscriptObject) | out-null
                         }
                         $logonScriptsArrayList
@@ -243,7 +243,7 @@ function Create-DataPoints(){
                             Get-ItemProperty HKU:\$User\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*;
                             Get-ItemProperty HKU:\$User\SOFTWARE\Wow6432Node\Windows\CurrentVersion\Uninstall\*
                         });
-                        $UserInstalls = $null;) | Where-Object {($_.DisplayName -ne $null) -and ($_.Publisher -ne $null)}
+                        $UserInstalls = $null;) | Where-Object {($null -ne $_.DisplayName) -and ($null -ne $_.Publisher)}
                 }
     $datapoints.Add([DataPoint]::new("InstalledSoftare", $scriptblock, $true)) | Out-Null
 
@@ -583,7 +583,7 @@ function Create-DataPoints(){
                 }
     $datapoints.Add([DataPoint]::new("ShortcutModifications", $scriptblock, $true)) | Out-Null
 
-    $scriptblock = {(Get-Process -Module -ea 0).FileName|Where-Object{$_ -notlike "*system32*"}|Select-String "Appdata","ProgramData","Temp","Users","public"|Get-unique|%{Get-FileHash -Path $_}}
+    $scriptblock = {(Get-Process -Module -ea 0).FileName|Where-Object{$_ -notlike "*system32*"}|Select-String "Appdata","ProgramData","Temp","Users","public"|Get-unique|ForEach-Object{Get-FileHash -Path $_}}
     $datapoints.Add([DataPoint]::new("DLLsInTempDirs", $scriptblock, $true)) | Out-Null
 
     $scriptblock = {Get-WinEvent -Log 'Microsoft-Windows-TerminalServices-LocalSessionManager/Operational' | Select-Object -exp Properties | Where-Object {$_.Value -like '*.*.*.*' } | Sort-Object Value -u }
@@ -621,7 +621,7 @@ function Create-DataPoints(){
                     $regexa = '.+Domain="(.+)",Name="(.+)"$';
                     $regexd = '.+LogonId="(\d+)"$';
                     $logon_users = @(Get-WmiObject win32_loggedonuser -ComputerName 'localhost');
-                    if(($logon_users -ne "") -and ($logon_users -ne $null)){
+                    if(($logon_users -ne "") -and ($null -ne $logon_users)){
                         $session_user = @{};
                         $logon_users |ForEach-Object {
                             $_.antecedent -match $regexa > $nul;
@@ -640,7 +640,7 @@ function Create-DataPoints(){
 
                             $klistoutput = klist -li $i
 
-                            if(($klistsarraylist -ne $null) -and ($klistoutput.count -gt 7)){
+                            if(($null -ne $klistsarraylist) -and ($klistoutput.count -gt 7)){
             
                                 $numofrecords = $klistoutput[4].split("(")[1]
                                 $numofrecords = $numofrecords.Substring(0,$numofrecords.Length-1)        
