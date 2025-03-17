@@ -99,9 +99,6 @@ function Invoke-Collection {
         elseif($CollectCategory){
             Write-Verbose "Collecting $CollectCategory"
         }
-        elseif($CollecterSize -eq "Dreadnought"){
-            Write-Verbose "Starting Dreadnought Collector"
-        }
 
         if($PSCmdlet.ParameterSetName -eq "LocalCollection"){
             Write-Verbose "Starting the Local Collecter"
@@ -112,14 +109,19 @@ function Invoke-Collection {
             $action =  {
                 
                 $Task = $Sender.name;
-                if($Sender.state -eq "Completed"){
+                $state = $Sender.state
+                if($state -eq "Completed"){
     
                     $jobcontent = Receive-Job $Sender | Select-Object -Property *,CompName
                     foreach($j in $jobcontent){
                         $j.CompName = $Event.MessageData
                     }
-                    $jobcontent | export-csv -force -append -NoTypeInformation -path "$rawFolder\Host_$Task.csv" | out-null;
-    
+                    if($OutputFormat -eq 'csv'){
+                        $jobcontent | export-csv -force -append -NoTypeInformation -path "$rawFolder\Host_$Task.csv" | out-null;
+                    }elseif($OutputFormat -eq 'json'){
+                        
+                    }
+
                     if(!$Sender.HasMoreData){
                         Unregister-Event -subscriptionid $EventSubscriber.SubscriptionId -Force;
                         Remove-Job -name $EventSubscriber.sourceidentifier -Force;
@@ -128,12 +130,12 @@ function Invoke-Collection {
                     }
                 
                 } 
-                elseif($Sender.state -eq "Failed"){
+                elseif($state -eq "Failed"){
                     $Sender | export-csv -Append -NoTypeInformation "$outFolder\failedjobs.csv"
                     Remove-Job $job.id -force
                 
                 }
-                elseif($Sender.state -eq "Disconnected"){
+                elseif($state -eq "Disconnected"){
                     $Sender | export-csv -Append -NoTypeInformation "$outFolder\failedjobs.csv"
                     Remove-Job $job.id -force
                 
@@ -150,6 +152,12 @@ function Invoke-Collection {
             } elseif ($CollectAll) {
                 foreach($datapoint in $datapoints){
                     Register-ObjectEvent -MessageData $env:COMPUTERNAME -InputObject (Start-Job -Name $datapoint.jobname -ScriptBlock $datapoint.scriptblock) -EventName StateChanged -Action $action | out-null
+                }
+            } elseif ($CollectCategory) {
+                foreach($datapoint in $datapoints){
+                    if($datapoint.techniqueCategory -eq $CollectCategory){
+                        Register-ObjectEvent -MessageData $env:COMPUTERNAME -InputObject (Start-Job -Name $datapoint.jobname -ScriptBlock $datapoint.scriptblock) -EventName StateChanged -Action $action | out-null
+                    }
                 }
             }
             
@@ -169,6 +177,8 @@ function Invoke-Collection {
                 }
                 
             }
+        } elseif ($PSCmdlet.ParameterSetName -eq "RemoteCollection") {
+            Write-Verbose "Starting the Remote Collector"
         }
     }
     END {
