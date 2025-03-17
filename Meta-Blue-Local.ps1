@@ -26,7 +26,6 @@ $global:nodeList = [System.Collections.ArrayList]@()
 $datapoints = [System.Collections.ArrayList]@()
 
 
-
 function Load-UserHives{
     # Get a list of NTUSER.DATs to load
     $ntusers= Get-ChildItem c:\users | ForEach-Object{if(test-path "$($_.fullname)\NTUSER.DAT"){"$($_.fullname)\NTUSER.DAT"}}
@@ -831,7 +830,11 @@ function Invoke-MetaBlue {
     WaitFor-Jobs
          
 }
-Invoke-MetaBlue
+#Invoke-MetaBlue
+foreach($dataPoint in $datapoints){
+    $dataPoint.jobname
+
+}
 
 
 

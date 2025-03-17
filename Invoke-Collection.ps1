@@ -1,4 +1,4 @@
-using module .\Modules\DataPoint.psm1
+using module .\Modules\DataPoint\DataPoint.psm1
 function Invoke-Collection {
 <#
 .SYNOPSIS
@@ -18,8 +18,12 @@ function Invoke-Collection {
 #>
 [CmdletBinding(DefaultParameterSetName = 'LocalCollect')]
     param(
-        [ValidateSet('Light', 'Medium', 'Heavy', 'Dreadnought', 'Custom')]
-        [string]$CollecterSize = 'Light',
+        [ValidateSet('TerminalServicesDLL','Screensaver','WMIEventSubscription','NetshHelperDLL','AccessibilityFeature',
+        'DefenderExclusionPath','DefenderExclusionIpAddress','DefenderExclusionExtension','Processes')]
+        [string[]]$Collect,
+
+        [ValidateSet('Uncategorized','Persistence','LateralMovement','ImpairDefenses')]
+        [string[]]$CollectCategory,
 
         [Parameter(ParameterSetName = 'RemoteCollect')]
         [Parameter(ParameterSetName = 'Enumeration')]
@@ -36,12 +40,12 @@ function Invoke-Collection {
         [ValidateSet('ActiveDirectoryComputers', 'TextFile', 'CSVFile')]
         [string]$ComputerSet,
         
-        [Parameter(Mandatory)]
+        [Parameter()]
         [string]$OutFolder = "C:\Meta-Blue"
     )
     BEGIN {
         $timestamp = (get-date).Tostring("yyyy_MM_dd_hh_mm_ss")
-        $datapoints = [System.Collections.ArrayList]@()
+        $datapoints = Create-DataPoints
         $global:rawFolder = "$OutFolder\$timestamp\Raw"
 
         if($Null -eq $ComputerSet){
@@ -56,6 +60,7 @@ function Invoke-Collection {
             Write-Verbose "Creating $OutFolder\$timestamp\Anomalies"
             new-item -itemtype directory -path "$outFolder\$timestamp\Anomalies" -Force | out-null  
         }
+
         if($CollecterSize -eq "Light"){
             Write-Verbose "Starting Light Collector"
         }
@@ -108,13 +113,14 @@ function Invoke-Collection {
             
             }
             
+            #foreach($datapoint in $datapoints){
+            #    if($datapoint.isEnabled){
             foreach($datapoint in $datapoints){
-                if($datapoint.isEnabled){
-                                    
+                if($Collect.Contains($datapoint.jobname)){
                     Register-ObjectEvent -MessageData $env:COMPUTERNAME -InputObject (Start-Job -Name $datapoint.jobname -ScriptBlock $datapoint.scriptblock) -EventName StateChanged -Action $action | out-null
-                
                 }
             }
+            
 
             while($true){
                 $jobs = Get-Job
