@@ -142,12 +142,12 @@ function Invoke-Collection {
                 
                 } 
                 elseif($state -eq "Failed"){
-                    $Sender | export-csv -Append -NoTypeInformation "$outFolder\failedjobs.csv"
+                    $Sender | export-csv -Append -NoTypeInformation "$OutFolder\failedjobs.csv"
                     Remove-Job $job.id -force
                 
                 }
                 elseif($state -eq "Disconnected"){
-                    $Sender | export-csv -Append -NoTypeInformation "$outFolder\failedjobs.csv"
+                    $Sender | export-csv -Append -NoTypeInformation "$OutFolder\failedjobs.csv"
                     Remove-Job $job.id -force
                 
                 }
