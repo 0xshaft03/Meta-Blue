@@ -40,8 +40,18 @@ function Invoke-Collection {
 
         [switch]$CollectAll,
 
-        [ValidateSet('TerminalServicesDLL','Screensaver','WMIEventSubscription','NetshHelperDLL','AccessibilityFeature',
-        'DefenderExclusionPath','DefenderExclusionIpAddress','DefenderExclusionExtension','Processes')]
+        [ValidateSet("TerminalServicesDLL","Screensaver","WMIEventSubscription","NetshHelperDLL","AccessibilityFeature
+        AppCertDLLS","AppInitDLLS","ApplicationShimming","ImageFileExecutionOptions","PowershellProfile","AuthenticationPackage
+        TimeProviders","WinlogonHelperDLL","SecuritySupportProvider","LSASSDriverWindowsEvents","LSASSDriverRegistry","PortMonitors
+        PrintProcessors","ActiveSetup","Processes","DNSCache","ProgramData","AlternateDataStreams","KnownDLLs","DLLSearchOrderHijacking
+        BITSJobsLogs","BITSTransfer","SystemFirmware","UserInitMprLogonScript","InstalledSoftare","AVProduct","Services","PowerShellVersion
+        Startup","StartupFolder","Drivers","EnvironmentVariables","NetworkAdapters","SystemInfo","Logon","NetworkConnections","SMBShares
+        SMBConnections","ScheduledTasks","PrefetchListing","PNPDevices","LogicalDisks","DiskDrives","LoadedDLLs","UnsignedDrivers","Hotfixes
+        ArpCache","NewlyRegisteredServices","AppPaths","UACBypassFodHelper","VisibleWirelessNetworks","HistoricalWiFiConnections
+        HistoricalFirewallChanges","PortProxies","CapabilityAccessManager","DnsClientServerAddress","ShortcutModifications
+        DLLsInTempDirs","RDPHistoricallyConnectedIPs","MpComputerStatus","MpPreference","COMObjects","CodeIntegrityLogs
+        SecurityLogCleared","SIPandTrustProviderHijacking","PassTheHash","NamedPipes","RegistryRunKeys","DefenderExclusionPath
+        DefenderExclusionIpAddress","DefenderExclusionExtension")]
         [string[]]$Collect,
 
         [ValidateSet('Uncategorized','Persistence','LateralMovement','ImpairDefenses')]
@@ -70,11 +80,14 @@ function Invoke-Collection {
     )
     BEGIN {
         $timestamp = (get-date).Tostring("yyyy_MM_dd_hh_mm_ss")
-        $datapoints = New-DataPoints
-        $global:rawFolder = "$OutFolder\$timestamp\Raw"
+        Write-Verbose "Folder Timestamp: $timestamp"
 
-        if($Null -eq $ComputerSet){
-        }
+        $datapoints = New-DataPoints
+        Write-Verbose "$($datapoints.Count) DataPoints configured"
+
+        $global:rawFolder = "$OutFolder\$timestamp\Raw"
+        Write-Verbose "Raw collect will be saved here: $global:rawFolder"
+
         if(!(Test-Path -Path "$OutFolder\$timestamp")){
             Write-Verbose "Creating $OutFolder\$timestamp"
             new-item -itemtype directory -path "$outFolder\$timestamp" -Force | Out-Null
@@ -84,6 +97,8 @@ function Invoke-Collection {
             
             Write-Verbose "Creating $OutFolder\$timestamp\Anomalies"
             new-item -itemtype directory -path "$outFolder\$timestamp\Anomalies" -Force | out-null  
+        } else {
+            Write-Verbose "$OutFolder\$timestamp already exists" 
         }
     
     }
@@ -94,7 +109,7 @@ function Invoke-Collection {
             Write-Verbose "Collecting Everything!"
         }
         elseif($Collect){
-            Write-Verbose "Collecting: $($datapoints.jobname)"
+            Write-Verbose "Collecting: $Collect"
         }
         elseif($CollectCategory){
             Write-Verbose "Collecting $CollectCategory"
@@ -107,7 +122,7 @@ function Invoke-Collection {
                 This is the action that the following event that is registered takes 
             #>
             $action =  {
-                
+                Write-Verbose "Output Format is: $OutputFormat"
                 $Task = $Sender.name;
                 $state = $Sender.state
                 if($state -eq "Completed"){
@@ -116,11 +131,8 @@ function Invoke-Collection {
                     foreach($j in $jobcontent){
                         $j.CompName = $Event.MessageData
                     }
-                    if($OutputFormat -eq 'csv'){
-                        $jobcontent | export-csv -force -append -NoTypeInformation -path "$rawFolder\Host_$Task.csv" | out-null;
-                    }elseif($OutputFormat -eq 'json'){
-                        
-                    }
+
+                    $jobcontent | export-csv -force -append -NoTypeInformation -path "$rawFolder\Host_$Task.csv" | out-null;
 
                     if(!$Sender.HasMoreData){
                         Unregister-Event -subscriptionid $EventSubscriber.SubscriptionId -Force;
@@ -142,18 +154,21 @@ function Invoke-Collection {
                 }
             
             }
-            Write-Verbose "Collecting: $datapoints"
+            
             if($Collect){
+                Write-Verbose "Collecting: $Collect"
                 foreach($datapoint in $datapoints){
                     if($Collect.Contains($datapoint.jobname)){
                         Register-ObjectEvent -MessageData $env:COMPUTERNAME -InputObject (Start-Job -Name $datapoint.jobname -ScriptBlock $datapoint.scriptblock) -EventName StateChanged -Action $action | out-null
                     }
                 }
             } elseif ($CollectAll) {
+                Write-Verbose "Collecting: $datapoints"
                 foreach($datapoint in $datapoints){
                     Register-ObjectEvent -MessageData $env:COMPUTERNAME -InputObject (Start-Job -Name $datapoint.jobname -ScriptBlock $datapoint.scriptblock) -EventName StateChanged -Action $action | out-null
                 }
             } elseif ($CollectCategory) {
+                Write-Verbose "Collecting from category: $CollectCategory"
                 foreach($datapoint in $datapoints){
                     if($datapoint.techniqueCategory -eq $CollectCategory){
                         Register-ObjectEvent -MessageData $env:COMPUTERNAME -InputObject (Start-Job -Name $datapoint.jobname -ScriptBlock $datapoint.scriptblock) -EventName StateChanged -Action $action | out-null
