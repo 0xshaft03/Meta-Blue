@@ -131,7 +131,8 @@ function Invoke-Collection {
                         $j.CompName = $Event.MessageData
                     }
 
-                    $jobcontent | export-csv -force -append -NoTypeInformation -path "$rawFolder\Host_$Task.csv" | out-null;
+
+                    $jobcontent | export-csv -force -append -NoTypeInformation -path "$rawFolder\Host_$Task.csv";
 
                     if(!$Sender.HasMoreData){
                         Unregister-Event -subscriptionid $EventSubscriber.SubscriptionId -Force;
@@ -154,42 +155,68 @@ function Invoke-Collection {
             
             }
             
+
+            <#... Maybe it is the case that the event driven stuff just isnt the answer.#>
             if($Collect){
                 Write-Verbose "Collecting: $Collect"
+                if($LocalCollection){
+                    foreach($datapoint in $datapoints){
+                        if($Collect.Contains($datapoint.jobname)){
+                            Start-Job -Name $datapoint.jobname -ScriptBlock $datapoint.scriptblock
+                        }
+                    }
+
+                }
+
+                <#
                 foreach($datapoint in $datapoints){
                     if($Collect.Contains($datapoint.jobname)){
                         Register-ObjectEvent -MessageData $env:COMPUTERNAME -InputObject (Start-Job -Name $datapoint.jobname -ScriptBlock $datapoint.scriptblock) -EventName StateChanged -Action $action | out-null
                     }
                 }
+                #>
             } elseif ($CollectAll) {
                 Write-Verbose "Collecting: $datapoints"
                 foreach($datapoint in $datapoints){
-                    Register-ObjectEvent -MessageData $env:COMPUTERNAME -InputObject (Start-Job -Name $datapoint.jobname -ScriptBlock $datapoint.scriptblock) -EventName StateChanged -Action $action | out-null
+                    Start-Job -Name $datapoint.jobname -ScriptBlock $datapoint.scriptblock
+                    #Register-ObjectEvent -MessageData $env:COMPUTERNAME -InputObject (Start-Job -Name $datapoint.jobname -ScriptBlock $datapoint.scriptblock) -EventName StateChanged -Action $action | out-null
                 }
             } elseif ($CollectCategory) {
                 Write-Verbose "Collecting from category: $CollectCategory"
                 foreach($datapoint in $datapoints){
                     if($datapoint.techniqueCategory -eq $CollectCategory){
-                        Register-ObjectEvent -MessageData $env:COMPUTERNAME -InputObject (Start-Job -Name $datapoint.jobname -ScriptBlock $datapoint.scriptblock) -EventName StateChanged -Action $action | out-null
+                        Start-Job -Name $datapoint.jobname -ScriptBlock $datapoint.scriptblock
+                        #Register-ObjectEvent -MessageData $env:COMPUTERNAME -InputObject (Start-Job -Name $datapoint.jobname -ScriptBlock $datapoint.scriptblock) -EventName StateChanged -Action $action | out-null
                     }
                 }
             }
-            
-
-            while($true){
+            $poll = $true
+            while($poll){
                 $jobs = Get-Job
-                
-                if($null -ne $jobs) {
+                foreach($job in $jobs){
+                    $ComputerName = $job.Location
+                    $Task = $job.name
 
+                    if($job.state -eq "Completed" -or $job.state -eq "Running"){
+                        
+                        Receive-Job $job.id | export-csv -force -Append -NoTypeInformation -Path "$rawFolder\Host_$Task.csv"
+
+                    } elseif($job.state -eq "Failed"){
+                        Write-Verbose "$Task failed on $ComputerName"
+                        Receive-Job $job
+                    }
+
+                    if(!($job.hasmoredata)){
+                        remove-job $job.id -force
+                    }
+                }
+                if($null -eq $(Get-Job)){
+                    $poll = $false
+                } else {
                     $jobs | Format-Table -RepeatHeader
                     Start-Sleep -Seconds 10
-
-                } else {
-
-                    break
-
                 }
-                
+
             }
         } elseif ($PSCmdlet.ParameterSetName -eq "RemoteCollection") {
             Write-Verbose "Starting the Remote Collector"
