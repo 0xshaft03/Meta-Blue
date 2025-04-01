@@ -117,47 +117,7 @@ function Invoke-Collection {
 
         if($PSCmdlet.ParameterSetName -eq "LocalCollection"){
             Write-Verbose "Starting the Local Collecter"
-
-            <#
-                This is the action that the following event that is registered takes 
-            #>
-            $action =  {
-                Write-Verbose "Output Format is: $OutputFormat"
-                $Task = $Sender.name;
-                $state = $Sender.state
-                if($state -eq "Completed"){
-    
-                    $jobcontent = Receive-Job $Sender | Select-Object -Property *,CompName
-                    foreach($j in $jobcontent){
-                        $j.CompName = $Event.MessageData
-                    }
-
-
-                    $jobcontent | export-csv -force -append -NoTypeInformation -path "$rawFolder\Host_$Task.csv";
-
-                    if(!$Sender.HasMoreData){
-                        Unregister-Event -subscriptionid $EventSubscriber.SubscriptionId -Force;
-                        Remove-Job -name $EventSubscriber.sourceidentifier -Force;
-                        Remove-job $Sender
-                        
-                    }
-                
-                } 
-                elseif($state -eq "Failed"){
-                    $Sender | export-csv -Append -NoTypeInformation "$OutFolder\failedjobs.csv"
-                    Remove-Job $job.id -force
-                
-                }
-                elseif($state -eq "Disconnected"){
-                    $Sender | export-csv -Append -NoTypeInformation "$OutFolder\failedjobs.csv"
-                    Remove-Job $job.id -force
-                
-                }
             
-            }
-            
-
-            <#... Maybe it is the case that the event driven stuff just isnt the answer.#>
             if($Collect){
                 Write-Verbose "Collecting: $Collect"
                 if($LocalCollection){
@@ -168,32 +128,22 @@ function Invoke-Collection {
                     }
 
                 }
-
-                <#
-                foreach($datapoint in $datapoints){
-                    if($Collect.Contains($datapoint.jobname)){
-                        Register-ObjectEvent -MessageData $env:COMPUTERNAME -InputObject (Start-Job -Name $datapoint.jobname -ScriptBlock $datapoint.scriptblock) -EventName StateChanged -Action $action | out-null
-                    }
-                }
-                #>
             } elseif ($CollectAll) {
                 Write-Verbose "Collecting: $datapoints"
                 foreach($datapoint in $datapoints){
                     Start-Job -Name $datapoint.jobname -ScriptBlock $datapoint.scriptblock
-                    #Register-ObjectEvent -MessageData $env:COMPUTERNAME -InputObject (Start-Job -Name $datapoint.jobname -ScriptBlock $datapoint.scriptblock) -EventName StateChanged -Action $action | out-null
                 }
             } elseif ($CollectCategory) {
                 Write-Verbose "Collecting from category: $CollectCategory"
                 foreach($datapoint in $datapoints){
                     if($datapoint.techniqueCategory -eq $CollectCategory){
                         Start-Job -Name $datapoint.jobname -ScriptBlock $datapoint.scriptblock
-                        #Register-ObjectEvent -MessageData $env:COMPUTERNAME -InputObject (Start-Job -Name $datapoint.jobname -ScriptBlock $datapoint.scriptblock) -EventName StateChanged -Action $action | out-null
                     }
                 }
             }
 
             Create-Artifact
-            
+
         } elseif ($PSCmdlet.ParameterSetName -eq "RemoteCollection") {
             Write-Verbose "Starting the Remote Collector"
         }
