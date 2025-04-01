@@ -1,4 +1,5 @@
 using module .\Modules\DataPoint\DataPoint.psm1
+using module .\Modules\JobController\JobController.psm1
 function Invoke-Collection {
 <#
 .SYNOPSIS
@@ -190,34 +191,9 @@ function Invoke-Collection {
                     }
                 }
             }
-            $poll = $true
-            while($poll){
-                $jobs = Get-Job
-                foreach($job in $jobs){
-                    $ComputerName = $job.Location
-                    $Task = $job.name
 
-                    if($job.state -eq "Completed" -or $job.state -eq "Running"){
-                        
-                        Receive-Job $job.id | export-csv -force -Append -NoTypeInformation -Path "$rawFolder\Host_$Task.csv"
-
-                    } elseif($job.state -eq "Failed"){
-                        Write-Verbose "$Task failed on $ComputerName"
-                        Receive-Job $job
-                    }
-
-                    if(!($job.hasmoredata)){
-                        remove-job $job.id -force
-                    }
-                }
-                if($null -eq $(Get-Job)){
-                    $poll = $false
-                } else {
-                    $jobs | Format-Table -RepeatHeader
-                    Start-Sleep -Seconds 10
-                }
-
-            }
+            Create-Artifact
+            
         } elseif ($PSCmdlet.ParameterSetName -eq "RemoteCollection") {
             Write-Verbose "Starting the Remote Collector"
         }
