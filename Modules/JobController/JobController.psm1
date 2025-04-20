@@ -22,7 +22,8 @@ function Create-Artifact(){
         if($null -eq $(Get-Job)){
             return
         } else {
-            $jobs | Format-Table -RepeatHeader
+            #$jobs | Format-Table -RepeatHeader
+            $jobs | Format-Table
             Start-Sleep -Seconds 10
         }
 

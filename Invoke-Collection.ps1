@@ -31,16 +31,12 @@ function Invoke-Collection {
 .NOTES
     Author: 0xshaft03
 #>
-[CmdletBinding(DefaultParameterSetName = 'LocalCollection')]
+[CmdletBinding(DefaultParameterSetName = 'LocalCollectAll')]
     param(
-        [Parameter(ParameterSetName = 'LocalCollection')]
-        [switch]$LocalCollection,
+        [Parameter(ParameterSetName = 'LocalCollectAll')]
+        [switch]$LocalCollectAll,
 
-        [Parameter(ParameterSetName = 'RemoteCollection')]
-        [switch]$RemoteCollection,
-
-        [switch]$CollectAll,
-
+        [Parameter(ParameterSetName = 'LocalCollectByName')]
         [ValidateSet("TerminalServicesDLL","Screensaver","WMIEventSubscription","NetshHelperDLL","AccessibilityFeature","AppCertDLLS","AppInitDLLS","ApplicationShimming","ImageFileExecutionOptions","PowershellProfile","AuthenticationPackage",
         "TimeProviders","WinlogonHelperDLL","SecuritySupportProvider","LSASSDriverWindowsEvents","LSASSDriverRegistry","PortMonitors",
         "PrintProcessors","ActiveSetup","Processes","DNSCache","ProgramData","AlternateDataStreams","KnownDLLs","DLLSearchOrderHijacking",
@@ -52,21 +48,50 @@ function Invoke-Collection {
         "DLLsInTempDirs","RDPHistoricallyConnectedIPs","MpComputerStatus","MpPreference","COMObjects","CodeIntegrityLogs",
         "SecurityLogCleared","SIPandTrustProviderHijacking","PassTheHash","NamedPipes","RegistryRunKeys","DefenderExclusionPath",
         "DefenderExclusionIpAddress","DefenderExclusionExtension")]
-        [string[]]$Collect,
+        [String]$LocalCollectByName,
 
+        [Parameter(ParameterSetName = 'LocalCollectByCategory')]
         [ValidateSet('Uncategorized','Persistence','LateralMovement','ImpairDefenses')]
-        [string[]]$CollectCategory,
+        [String]$LocalCollectByCategory,
 
-        [Parameter(ParameterSetName = 'RemoteCollection')]
+        [Parameter(ParameterSetName = 'RemoteCollectAll')]
+        [switch]$RemoteCollectAll,
+
+        [Parameter(ParameterSetName = 'RemoteCollectByName')]
+        [ValidateSet("TerminalServicesDLL","Screensaver","WMIEventSubscription","NetshHelperDLL","AccessibilityFeature","AppCertDLLS","AppInitDLLS","ApplicationShimming","ImageFileExecutionOptions","PowershellProfile","AuthenticationPackage",
+        "TimeProviders","WinlogonHelperDLL","SecuritySupportProvider","LSASSDriverWindowsEvents","LSASSDriverRegistry","PortMonitors",
+        "PrintProcessors","ActiveSetup","Processes","DNSCache","ProgramData","AlternateDataStreams","KnownDLLs","DLLSearchOrderHijacking",
+        "BITSJobsLogs","BITSTransfer","SystemFirmware","UserInitMprLogonScript","InstalledSoftare","AVProduct","Services","PowerShellVersion",
+        "Startup","StartupFolder","Drivers","EnvironmentVariables","NetworkAdapters","SystemInfo","Logon","NetworkConnections","SMBShares",
+        "SMBConnections","ScheduledTasks","PrefetchListing","PNPDevices","LogicalDisks","DiskDrives","LoadedDLLs","UnsignedDrivers","Hotfixes",
+        "ArpCache","NewlyRegisteredServices","AppPaths","UACBypassFodHelper","VisibleWirelessNetworks","HistoricalWiFiConnections",
+        "HistoricalFirewallChanges","PortProxies","CapabilityAccessManager","DnsClientServerAddress","ShortcutModifications",
+        "DLLsInTempDirs","RDPHistoricallyConnectedIPs","MpComputerStatus","MpPreference","COMObjects","CodeIntegrityLogs",
+        "SecurityLogCleared","SIPandTrustProviderHijacking","PassTheHash","NamedPipes","RegistryRunKeys","DefenderExclusionPath",
+        "DefenderExclusionIpAddress","DefenderExclusionExtension")]
+        [String]$RemoteCollectByName,
+
+        [Parameter(ParameterSetName = 'RemoteCollectByCategory')]
+        [ValidateSet('Uncategorized','Persistence','LateralMovement','ImpairDefenses')]
+        [String]$RemoteCollectByCategory,
+
+
+        [Parameter(ParameterSetName = 'RemoteCollectAll')]
+        [Parameter(ParameterSetName = 'RemoteCollectByName')]
+        [Parameter(ParameterSetName = 'RemoteCollectByCategory')]
         [Parameter(ParameterSetName = 'Enumeration')]
         [switch]$Enumerate,
 
-        [Parameter(ParameterSetName = 'RemoteCollection')]
+        [Parameter(ParameterSetName = 'RemoteCollectAll')]
+        [Parameter(ParameterSetName = 'RemoteCollectByName')]
+        [Parameter(ParameterSetName = 'RemoteCollectByCategory')]
         [Parameter(ParameterSetName = 'Enumeration')]
         [ValidateNotNullOrEmpty()]
         [string]$Subnet,
 
-        [Parameter(ParameterSetName = 'RemoteCollection')]
+        [Parameter(ParameterSetName = 'RemoteCollectAll')]
+        [Parameter(ParameterSetName = 'RemoteCollectByName')]
+        [Parameter(ParameterSetName = 'RemoteCollectByCategory')]
         [Parameter(ParameterSetName = 'Enumeration')]
         [ValidateNotNullOrEmpty()]
         [ValidateSet('ActiveDirectoryComputers', 'TextFile', 'CSVFile')]
@@ -79,6 +104,15 @@ function Invoke-Collection {
         [string]$OutputFormat = 'csv'
     )
     BEGIN {
+        if($ComputerSet -eq "ActiveDirectoryComputers"){
+            $ad = Get-Module -name ActiveDirectory
+            if($ad){
+                Write-Verbose "ActiveDirectory Module Found!"
+            }elseif(!$ad){
+                Write-Verbose "ActiveDirectory Module is not Found!"
+            }
+
+        }
         $timestamp = (get-date).Tostring("yyyy_MM_dd_hh_mm_ss")
         Write-Verbose "Folder Timestamp: $timestamp"
 
@@ -105,38 +139,50 @@ function Invoke-Collection {
     PROCESS {
         Write-Debug "ParameterSetName = $($PSCmdlet.ParameterSetName)"
 
-        if($CollectAll){
+        if($LocalCollectAll -or $RemoteCollectAll){
             Write-Verbose "Collecting Everything!"
         }
-        elseif($Collect){
-            Write-Verbose "Collecting: $Collect"
+        elseif($LocalCollectByName -or $RemoteCollectByName){
+            if($LocalCollectByName){
+                Write-Verbose "Collecting: $LocalCollectByName"
+            } elseif ($RemoteCollectByName) {
+                
+                Write-Verbose "Collecting: $RemoteCollectByName"
+            }
+            
         }
-        elseif($CollectCategory){
-            Write-Verbose "Collecting $CollectCategory"
+        elseif($LocalCollectByCategory -or $RemoteCollectByCategory){
+            if($LocalCollectByCategory){
+                Write-Verbose "Collecting: $LocalCollectByCategory"
+            } elseif ($RemoteCollectByCategory) {
+                
+                Write-Verbose "Collecting: $RemoteCollectByCategory"
+            }
+            
         }
 
-        if($PSCmdlet.ParameterSetName -eq "LocalCollection"){
+        if($PSCmdlet.ParameterSetName -like "Local*"){
             Write-Verbose "Starting the Local Collecter"
             
-            if($Collect){
-                Write-Verbose "Collecting: $Collect"
-                if($LocalCollection){
+            if($LocalCollectByName){
+                Write-Verbose "Collecting: $LocalCollectByName"
+                if($LocalCollectByName){
                     foreach($datapoint in $datapoints){
-                        if($Collect.Contains($datapoint.jobname)){
+                        if($LocalCollectByName.Contains($datapoint.jobname)){
                             Start-Job -Name $datapoint.jobname -ScriptBlock $datapoint.scriptblock
                         }
                     }
 
                 }
-            } elseif ($CollectAll) {
+            } elseif ($LocalCollectAll) {
                 Write-Verbose "Collecting: $datapoints"
                 foreach($datapoint in $datapoints){
                     Start-Job -Name $datapoint.jobname -ScriptBlock $datapoint.scriptblock
                 }
-            } elseif ($CollectCategory) {
-                Write-Verbose "Collecting from category: $CollectCategory"
+            } elseif ($LocalCollectByCategory) {
+                Write-Verbose "Collecting from category: $LocalCollectByCategory"
                 foreach($datapoint in $datapoints){
-                    if($datapoint.techniqueCategory -eq $CollectCategory){
+                    if($datapoint.techniqueCategory -eq $LocalCollectByCategory){
                         Start-Job -Name $datapoint.jobname -ScriptBlock $datapoint.scriptblock
                     }
                 }
@@ -144,8 +190,12 @@ function Invoke-Collection {
 
             Create-Artifact
 
-        } elseif ($PSCmdlet.ParameterSetName -eq "RemoteCollection") {
+        } elseif ($PSCmdlet.ParameterSetName -like "Remote*") {
             Write-Verbose "Starting the Remote Collector"
+
+            if($ComputerSet -eq "ActiveDirectoryComputers"){
+                $computers = Get-AdComputer
+            }
         }
     }
     END {

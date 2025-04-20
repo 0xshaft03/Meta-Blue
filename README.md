@@ -13,6 +13,15 @@ lighter weight script.
  - A few of the datapoints being collected are either irrelevant or do not return something of implict value.
  - Reworking services to scrape registry instead of get-services/gwmi win32_service/etc.
  - Incorporating checks from tools like [WinPwn](https://github.com/S3cur3Th1sSh1t/WinPwn) and [WinPEAS](https://github.com/peass-ng/PEASS-ng/tree/master/winPEAS). (if attackers know where they can privesc, shouldn't you?)
+ - Parameter Sets:
+    - LocalCollectAll
+    - LocalCollectByName
+    - LocalCollectByCategory
+    - RemoteCollectAll
+    - RemoteCollectByName
+    - RemoteCollectByCategory
+
+
 
 ## UI/UX
  - Finally working on getting rid of the menu.
