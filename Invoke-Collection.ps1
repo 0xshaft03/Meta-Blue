@@ -48,7 +48,7 @@ function Invoke-Collection {
         "DLLsInTempDirs","RDPHistoricallyConnectedIPs","MpComputerStatus","MpPreference","COMObjects","CodeIntegrityLogs",
         "SecurityLogCleared","SIPandTrustProviderHijacking","PassTheHash","NamedPipes","RegistryRunKeys","DefenderExclusionPath",
         "DefenderExclusionIpAddress","DefenderExclusionExtension")]
-        [String]$LocalCollectByName,
+        [String[]]$LocalCollectByName,
 
         [Parameter(ParameterSetName = 'LocalCollectByCategory')]
         [ValidateSet('Uncategorized','Persistence','LateralMovement','ImpairDefenses')]
@@ -69,7 +69,7 @@ function Invoke-Collection {
         "DLLsInTempDirs","RDPHistoricallyConnectedIPs","MpComputerStatus","MpPreference","COMObjects","CodeIntegrityLogs",
         "SecurityLogCleared","SIPandTrustProviderHijacking","PassTheHash","NamedPipes","RegistryRunKeys","DefenderExclusionPath",
         "DefenderExclusionIpAddress","DefenderExclusionExtension")]
-        [String]$RemoteCollectByName,
+        [String[]]$RemoteCollectByName,
 
         [Parameter(ParameterSetName = 'RemoteCollectByCategory')]
         [ValidateSet('Uncategorized','Persistence','LateralMovement','ImpairDefenses')]
@@ -109,7 +109,7 @@ function Invoke-Collection {
             if($ad){
                 Write-Verbose "ActiveDirectory Module Found!"
             }elseif(!$ad){
-                Write-Verbose "ActiveDirectory Module is not Found!"
+                Write-Error "ActiveDirectory Module is not Found!"
             }
 
         }
@@ -134,6 +134,8 @@ function Invoke-Collection {
         } else {
             Write-Verbose "$OutFolder\$timestamp already exists" 
         }
+
+        
     
     }
     PROCESS {
@@ -188,15 +190,51 @@ function Invoke-Collection {
                 }
             }
 
-            Create-Artifact
+            
 
         } elseif ($PSCmdlet.ParameterSetName -like "Remote*") {
             Write-Verbose "Starting the Remote Collector"
-
+            $RemoteRunspaces = [System.Collections.ArrayList]@()
+            $RemoteJobs = [System.Collections.ArrayList]@()
+            
             if($ComputerSet -eq "ActiveDirectoryComputers"){
-                $computers = Get-AdComputer
+                $computers = Get-AdComputer -filter 'DNSHostName -ne "dc.foo.local"'
+
+                if($null -ne $computers){
+                    foreach($computer in $computers){
+                        #Invoke-Command -ComputerName $computer.DNSHostName -ScriptBlock {if(!(Get-PSSessionConfiguration -Name metablue)){Register-PSSessionConfiguration -ThreadApartmentState MTA -ThreadOptions UseNewThread -name metablue}}
+                        #$s = New-PSSession -ComputerName $computer.DNSHostName -ConfigurationName metablue
+                        #$RemoteRunspaces.add($s)
+                        $RemoteRunspace = New-RemoteRunspacePool -ComputerName $computer.DNSHostName -MaxRunspaces 75
+                        $RemoteRunspaces.Add($RemoteRunspace) | out-null
+
+                    }
+                }
+
+                if($null -ne $RemoteRunspaces){
+                    if($RemoteCollectAll){
+                        foreach($datapoint in $datapoints){
+                            #Invoke-Command -Session $RemoteRunspaces -ScriptBlock $datapoint.scriptblock -AsJob -JobName $datapoint.jobname
+                            foreach($RemoteRunspace in $RemoteRunspaces){
+                                $RemoteJob = New-RemoteRunspacePoolScriptBlock -HostRunspacePool $RemoteRunspace -ScriptBlock $datapoint.scriptblock -Datapointname $datapoint.jobname
+                                $RemoteJobs.Add($RemoteJob) | out-null
+                            }
+                        }
+                    }
+
+                    if($RemoteCollectByName){
+                        foreach($datapoint in $datapoints){
+                            if($RemoteCollectByName.Contains($datapoint.jobname)){
+                                Invoke-Command -Session $RemoteRunspaces -ScriptBlock $datapoint.scriptblock -AsJob -JobName $datapoint.jobname
+                            }
+                        }
+                    }
+                }
             }
         }
+
+        Create-ArtifactFromRemoteRunspacePool -RemoteJobs $RemoteJobs -rawFolder $rawFolder
+        #Create-Artifact
     }
     END {
 
