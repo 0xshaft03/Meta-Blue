@@ -62,20 +62,6 @@ function Create-ArtifactFromRemoteRunspacePool(){
         [String]$rawFolder
     )
     
-    #[System.Threading.WaitHandle[]]$asynchandles = $RemoteJobs.AsyncHandle
-    <#
-    [System.Threading.WaitHandle[]]$asynchandles = @()
-    foreach($RemoteJob in $RemoteJobs){
-        #$asynchandles += $RemoteJob.AsyncHandle.AsyncWaitHandle
-        $RemoteJob.AsyncHandle.AsyncWaitHandle.WaitOne()
-    }
-    
-    $batchSize = 64
-    for ($i = 0; $i -lt $asynchandles.Count; $i += $batchSize){
-        $batch = $asynchandles[$i..([math]::Min($i + $batchSize -1, $asynchandles.Count - 1))]
-        [System.Threading.WaitHandle]::WaitAll($batch)
-    }
-    #>
     $workingJobCount = $RemoteJobs.Count
     while($workingJobCount -gt 0){
         $completedJobs = [System.Collections.ArrayList]@()
