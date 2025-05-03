@@ -237,6 +237,8 @@ function Invoke-Collection {
         #Create-Artifact
     }
     END {
-
+        foreach($RemoteRunspace in $RemoteRunspaces){
+            $RemoteRunspace.dispose()
+        }
     }
 }

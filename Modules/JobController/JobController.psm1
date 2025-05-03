@@ -1,3 +1,6 @@
+<#
+    Given a computername, create a remote runspace pool on the host.
+#>
 function New-RemoteRunspacePool(){
     [CmdletBinding(DefaultParameterSetName = 'Default')]
     param(
@@ -7,10 +10,24 @@ function New-RemoteRunspacePool(){
     )
 
     $wsmanconnection = [System.Management.Automation.Runspaces.WSManConnectionInfo]::new()
+    if(!$wsmanconnection){
+        throw 
+    }
     $wsmanconnection.ComputerName = $Computername
 
-    $HostRunspacePool = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspacePool(2,$MaxRunspaces,$wsmanconnection)
-    $HostRunspacePool.Open()
+    try{
+        $HostRunspacePool = [System.Management.Automation.Runspaces.RunspaceFactory]::CreateRunspacePool(2,$MaxRunspaces,$wsmanconnection)
+    
+    } catch [System.ArgumentNullException] {
+        Write-Error -Message "$PSItem" -ErrorAction Stop 
+    }
+    
+    try {
+        $HostRunspacePool.Open()
+    } catch [System.Management.Automation.Runspaces.InvalidRunspacePoolStateException] {
+        Write-Error -Message "$PSItem"
+    }
+    
     return $HostRunspacePool
 }
 
@@ -45,17 +62,40 @@ function Create-ArtifactFromRemoteRunspacePool(){
         [String]$rawFolder
     )
     
-    $asynchandles = $RemoteJobs.AsyncHandle
-    [System.Threading.WaitHandle]::WaitAll($asynchandles)
-
-
-    foreach($job in $RemoteJobs){
-        $compname = $job.RemoteComputerName
-        if(!(Test-Path "$rawFolder\$($job.RemoteComputerName)")){new-item -ItemType Directory -Path "$rawFolder\$compname" -Force |out-null}
-        $job.jobhandle.endinvoke($job.asynchandle) | export-csv -Force -Append -NoTypeInformation -Path "$rawFolder\$compname\Host_$($job.jobname).csv";
-        #$job.jobhandle.endinvoke($job.asynchandle) | export-csv -Force -Append -NoTypeInformation -Path "$rawFolder\Host_$($job.jobname).csv";
-        $job.JobHandle.dispose();
+    #[System.Threading.WaitHandle[]]$asynchandles = $RemoteJobs.AsyncHandle
+    <#
+    [System.Threading.WaitHandle[]]$asynchandles = @()
+    foreach($RemoteJob in $RemoteJobs){
+        #$asynchandles += $RemoteJob.AsyncHandle.AsyncWaitHandle
+        $RemoteJob.AsyncHandle.AsyncWaitHandle.WaitOne()
     }
+    
+    $batchSize = 64
+    for ($i = 0; $i -lt $asynchandles.Count; $i += $batchSize){
+        $batch = $asynchandles[$i..([math]::Min($i + $batchSize -1, $asynchandles.Count - 1))]
+        [System.Threading.WaitHandle]::WaitAll($batch)
+    }
+    #>
+    $workingJobCount = $RemoteJobs.Count
+    while($workingJobCount -gt 0){
+        $completedJobs = [System.Collections.ArrayList]@()
+        foreach($job in $RemoteJobs){
+            if($job.AsyncHandle.AsyncWaitHandle.WaitOne()){
+                $compname = $job.RemoteComputerName
+                if(!(Test-Path "$rawFolder\$($job.RemoteComputerName)")){new-item -ItemType Directory -Path "$rawFolder\$compname" -Force |out-null}
+                $job.jobhandle.endinvoke($job.asynchandle) | export-csv -Force -Append -NoTypeInformation -Path "$rawFolder\$compname\Host_$($job.jobname).csv";
+                #$job.jobhandle.endinvoke($job.asynchandle) | export-csv -Force -Append -NoTypeInformation -Path "$rawFolder\Host_$($job.jobname).csv";
+                $job.JobHandle.dispose();
+                $completedJobs.add($job) | out-null
+                $workingJobCount = $workingJobCount - 1
+            }
+            
+        }
+        foreach($completedJob in $completedJobs){
+            $RemoteJobs.Remove($completedJob)
+        }
+    }
+    
 
 }
 
