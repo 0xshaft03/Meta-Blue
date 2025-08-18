@@ -54,7 +54,7 @@ function New-RemoteRunspacePoolScriptBlock(){
 
 }
 
-function Create-ArtifactFromRemoteRunspacePool(){
+function Get-ArtifactFromRemoteRunspacePool(){
     [CmdletBinding(DefaultParameterSetName = 'Default')]
     param(
         [ValidateNotNullOrEmpty()]
@@ -85,7 +85,7 @@ function Create-ArtifactFromRemoteRunspacePool(){
 
 }
 
-function Create-Artifact(){
+function Get-Artifact(){
     
     while($true){
         $jobs = Get-Job

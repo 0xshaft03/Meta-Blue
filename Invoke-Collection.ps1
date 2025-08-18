@@ -189,7 +189,7 @@ function Invoke-Collection {
                     }
                 }
             }
-            Create-Artifact
+            Get-Artifact
             
 
         } elseif ($PSCmdlet.ParameterSetName -like "Remote*") {
@@ -231,11 +231,9 @@ function Invoke-Collection {
                     }
                 }
             }
-            Create-ArtifactFromRemoteRunspacePool -RemoteJobs $RemoteJobs -rawFolder $rawFolder
+            Get-ArtifactFromRemoteRunspacePool -RemoteJobs $RemoteJobs -rawFolder $rawFolder
         }
 
-        #Create-ArtifactFromRemoteRunspacePool -RemoteJobs $RemoteJobs -rawFolder $rawFolder
-        #Create-Artifact
     }
     END {
         foreach($RemoteRunspace in $RemoteRunspaces){
