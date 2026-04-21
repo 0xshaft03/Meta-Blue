@@ -198,7 +198,7 @@ function Invoke-Collection {
             $RemoteJobs = [System.Collections.ArrayList]@()
             
             if($ComputerSet -eq "ActiveDirectoryComputers"){
-                $computers = Get-AdComputer -filter 'DNSHostName -ne "dc.foo.local"'
+                $computers = Get-AdComputer -filter '*'
 
                 if($null -ne $computers){
                     foreach($computer in $computers){
@@ -225,7 +225,9 @@ function Invoke-Collection {
                     if($RemoteCollectByName){
                         foreach($datapoint in $datapoints){
                             if($RemoteCollectByName.Contains($datapoint.jobname)){
-                                Invoke-Command -Session $RemoteRunspaces -ScriptBlock $datapoint.scriptblock -AsJob -JobName $datapoint.jobname
+                                #Invoke-Command -Session $RemoteRunspaces -ScriptBlock $datapoint.scriptblock -AsJob -JobName $datapoint.jobname
+                                $RemoteJob = New-RemoteRunspacePoolScriptBlock -HostRunspacePool $RemoteRunspace -ScriptBlock $datapoint.scriptblock -Datapointname $datapoint.jobname
+                                $RemoteJobs.Add($RemoteJob) | out-null
                             }
                         }
                     }
