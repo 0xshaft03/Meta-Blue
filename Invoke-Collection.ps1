@@ -30,9 +30,10 @@ function Invoke-Collection {
     Accepts one or more values from the built-in ValidateSet (76 names).
 
 .PARAMETER LocalCollectByCategory
-    Collect data points matching a MITRE ATT&CK technique category on
-    the local machine. Valid values: Uncategorized, Persistence,
-    LateralMovement, ImpairDefenses.
+    Collect data points matching a MITRE ATT&CK tactic on the local
+    machine. Valid values: Uncategorized, Persistence, Discovery,
+    DefenseEvasion, LateralMovement, CommandAndControl,
+    PrivilegeEscalation, CredentialAccess.
 
 .PARAMETER RemoteCollectAll
     Collect all data points from remote hosts.
@@ -41,7 +42,9 @@ function Invoke-Collection {
     Collect specific data points by name from remote hosts.
 
 .PARAMETER RemoteCollectByCategory
-    Collect data points matching a technique category from remote hosts.
+    Collect data points matching a MITRE ATT&CK tactic from remote hosts.
+    Valid values: Uncategorized, Persistence, Discovery, DefenseEvasion,
+    LateralMovement, CommandAndControl, PrivilegeEscalation, CredentialAccess.
 
 .PARAMETER CollectionProfile
     Collection scope profile. Full collects all data points (default).
@@ -139,7 +142,7 @@ function Invoke-Collection {
         [String[]]$LocalCollectByName,
 
         [Parameter(ParameterSetName = 'LocalCollectByCategory')]
-        [ValidateSet('Uncategorized','Persistence','LateralMovement','ImpairDefenses')]
+        [ValidateSet('Uncategorized','Persistence','Discovery','DefenseEvasion','LateralMovement','CommandAndControl','PrivilegeEscalation','CredentialAccess')]
         [String]$LocalCollectByCategory,
 
         [Parameter(ParameterSetName = 'RemoteCollectAll')]
@@ -161,7 +164,7 @@ function Invoke-Collection {
         [String[]]$RemoteCollectByName,
 
         [Parameter(ParameterSetName = 'RemoteCollectByCategory')]
-        [ValidateSet('Uncategorized','Persistence','LateralMovement','ImpairDefenses')]
+        [ValidateSet('Uncategorized','Persistence','Discovery','DefenseEvasion','LateralMovement','CommandAndControl','PrivilegeEscalation','CredentialAccess')]
         [String]$RemoteCollectByCategory,
 
 
