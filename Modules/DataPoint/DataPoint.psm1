@@ -1,9 +1,12 @@
 enum TechniqueCategory {
     Uncategorized
     Persistence
+    Discovery
+    DefenseEvasion
     LateralMovement
-    ImpairDefenses
     CommandAndControl
+    PrivilegeEscalation
+    CredentialAccess
 }
 class DataPoint {
     [string]$jobname
@@ -218,17 +221,17 @@ function New-DataPoints(){
         } 
         $processes | Select-Object processname,handles,path.pscomputernamename,commandline,creationdate,executablepath,parentprocessid,processid, Hash
     }
-    $datapoints.Add([DataPoint]::new("Processes", $scriptblock, $true, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("Processes", $scriptblock, $true, "T1057", [TechniqueCategory]::Discovery, $true)) | Out-Null
 
     $scriptblock = {try {Get-DnsClientCache -ErrorAction SilentlyContinue | Select-Object -Property TTL,pscomputername,data,entry,name} catch {}}
-    $datapoints.Add([DataPoint]::new("DNSCache", $scriptblock, $true, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("DNSCache", $scriptblock, $true, "T1016", [TechniqueCategory]::Discovery, $true)) | Out-Null
 
     # I don't know how to feel about this one. Seems trash.
     $scriptblock = {Get-ChildItem -Recurse c:\ProgramData\ | Select-Object -Property Fullname,Pscomputername,creationtimeutc,lastaccesstimeutc,attributes} 
     $datapoints.Add([DataPoint]::new("ProgramData", $scriptblock, $true)) | Out-Null
 
     $scriptblock = {Get-ChildItem -Path C:\Users\* -Recurse -Depth 3 -ErrorAction SilentlyContinue | ForEach-Object FullName | Get-Item -Stream * -ErrorAction SilentlyContinue | Where-Object {$_.Stream -ne ':$DATA'} | Select-Object -Property Filename, PSComputerName, Stream}
-    $datapoints.Add([DataPoint]::new("AlternateDataStreams", $scriptblock, $true, "T1564.004", [TechniqueCategory]::Uncategorized)) | Out-Null
+    $datapoints.Add([DataPoint]::new("AlternateDataStreams", $scriptblock, $true, "T1564.004", [TechniqueCategory]::DefenseEvasion)) | Out-Null
 
     # This one is hot garbage as well. 
     $scriptblock = {(Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\KnownDLLs\')}
@@ -248,7 +251,7 @@ function New-DataPoints(){
     $datapoints.Add([DataPoint]::new("BITSTransfer", $scriptblock, $true, "T1197", [TechniqueCategory]::Persistence)) | Out-Null
 
     $scriptblock = {Get-WmiObject win32_bios | Select-Object -Property pscomputername,biosversion,caption,currentlanguage,manufacturer,name,serialnumber}
-    $datapoints.Add([DataPoint]::new("SystemFirmware", $scriptblock, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("SystemFirmware", $scriptblock, $true, "T1542.001", [TechniqueCategory]::Persistence)) | Out-Null
 
     $scriptblock = {
                     $logonScriptsArrayList = [System.Collections.ArrayList]@();
@@ -268,7 +271,7 @@ function New-DataPoints(){
                     }
                     $logonScriptsArrayList
                 }
-    $datapoints.Add([DataPoint]::new("UserInitMprLogonScript", $scriptblock, $true, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("UserInitMprLogonScript", $scriptblock, $true, "T1037.001", [TechniqueCategory]::Persistence, $true)) | Out-Null
 
     $scriptblock = {
                     $(
@@ -285,17 +288,17 @@ function New-DataPoints(){
                         });
                         $UserInstalls = $null;) | Where-Object {($null -ne $_.DisplayName) -and ($null -ne $_.Publisher)}
                 }
-    $datapoints.Add([DataPoint]::new("InstalledSoftare", $scriptblock, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("InstalledSoftare", $scriptblock, $true, "T1518", [TechniqueCategory]::Discovery)) | Out-Null
 
     $scriptblock = {Get-WmiObject -Namespace "root\SecurityCenter2" -Class AntiVirusProduct -ErrorAction SilentlyContinue | Select-Object PSComputerName,displayName,pathToSignedProductExe,pathToSignedReportingExe}
-    $datapoints.Add([DataPoint]::new("AVProduct", $scriptblock, $true, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("AVProduct", $scriptblock, $true, "T1518.001", [TechniqueCategory]::Discovery, $true)) | Out-Null
 
     # This lil guy needs to be straight rippin from the registry and manually parsing.
     $scriptblock = {Get-WmiObject win32_service | Select-Object -Property PSComputerName,caption,description,pathname,processid,startname,state}
     $datapoints.Add([DataPoint]::new("Services", $scriptblock, $true, "T1543.003", [TechniqueCategory]::Persistence, $true)) | Out-Null
 
     $scriptblock = {try {Get-WindowsOptionalFeature -Online -FeatureName microsoftwindowspowershellv2 | Select-Object -Property PSComputerName,FeatureName,State,LogPath} catch {}}
-    $datapoints.Add([DataPoint]::new("PowerShellVersion", $scriptblock, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("PowerShellVersion", $scriptblock, $true, "T1082", [TechniqueCategory]::Discovery)) | Out-Null
 
     # I don't like this one either.
     $scriptblock = {Get-CimInstance win32_startupcommand | Select-Object -Property PSComputerName,Caption,Command,Description,Location,User}
@@ -305,7 +308,7 @@ function New-DataPoints(){
                     Get-ChildItem -path "C:\Users\*\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\*"<# -include *.lnk,*.url#> -ErrorAction SilentlyContinue| Select-Object -Property PSComputerName,Length,FullName,Extension,CreationTime,LastAccessTime;
                     Get-ChildItem -path "C:\ProgramData\Microsoft\Windows\Start Menu\Programs\StartUp\*" <#-include *.lnk,*.url#> -ErrorAction SilentlyContinue | Select-Object -Property PSComputerName,Length,FullName,Extension,CreationTime,LastAccessTime
                 }
-    $datapoints.Add([DataPoint]::new("StartupFolder", $scriptblock, $true, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("StartupFolder", $scriptblock, $true, "T1547.001", [TechniqueCategory]::Persistence, $true)) | Out-Null
 
     # Can we get this from the registry with higher fidelity instead or no?
     $scriptblock = {
@@ -315,25 +318,25 @@ function New-DataPoints(){
         } | Select-Object -Property PSComputerName,caption,description,name,pathname,started,startmode,state,hash
         $drivers
     }
-    $datapoints.Add([DataPoint]::new("Drivers", $scriptblock, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("Drivers", $scriptblock, $true, "T1082", [TechniqueCategory]::Discovery)) | Out-Null
 
     $scriptblock = {Get-WmiObject win32_environment |Where-Object{$_.name -ne "OneDrive"}}
-    $datapoints.Add([DataPoint]::new("EnvironmentVariables", $scriptblock, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("EnvironmentVariables", $scriptblock, $true, "T1082", [TechniqueCategory]::Discovery)) | Out-Null
 
     $scriptblock = {Get-WmiObject win32_networkadapterconfiguration | Select-Object -Property PSComputerName,Description,IPAddress,IPSubnet,MACAddress,servicename,__server}
-    $datapoints.Add([DataPoint]::new("NetworkAdapters", $scriptblock, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("NetworkAdapters", $scriptblock, $true, "T1016", [TechniqueCategory]::Discovery)) | Out-Null
 
     $scriptblock = {Get-WmiObject win32_computersystem | Select-Object -Property PSComputerName,domain,manufacturer,model,primaryownername,totalphysicalmemory,username}
-    $datapoints.Add([DataPoint]::new("SystemInfo", $scriptblock, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("SystemInfo", $scriptblock, $true, "T1082", [TechniqueCategory]::Discovery)) | Out-Null
 
     $scriptblock = {Get-WmiObject win32_networkloginprofile}
     $datapoints.Add([DataPoint]::new("Logon", $scriptblock, $true)) | Out-Null
 
     $scriptblock = {try {Get-NetTcpConnection} catch {}}
-    $datapoints.Add([DataPoint]::new("NetworkConnections", $scriptblock, $true, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("NetworkConnections", $scriptblock, $true, "T1049", [TechniqueCategory]::Discovery, $true)) | Out-Null
 
     $scriptblock = {try {Get-SmbShare} catch {}}
-    $datapoints.Add([DataPoint]::new("SMBShares", $scriptblock, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("SMBShares", $scriptblock, $true, "T1135", [TechniqueCategory]::Discovery)) | Out-Null
 
     $scriptblock = {try {Get-SmbConnection} catch {}}
     $datapoints.Add([DataPoint]::new("SMBConnections", $scriptblock, $true)) | Out-Null
@@ -437,13 +440,13 @@ function New-DataPoints(){
     $datapoints.Add([DataPoint]::new("PrefetchListing", $scriptblock, $true)) | Out-Null
 
     $scriptblock = {Get-WmiObject win32_pnpentity}
-    $datapoints.Add([DataPoint]::new("PNPDevices", $scriptblock, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("PNPDevices", $scriptblock, $true, "T1120", [TechniqueCategory]::Discovery)) | Out-Null
 
     $scriptblock = {Get-WmiObject win32_logicaldisk} 
-    $datapoints.Add([DataPoint]::new("LogicalDisks", $scriptblock, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("LogicalDisks", $scriptblock, $true, "T1083", [TechniqueCategory]::Discovery)) | Out-Null
 
     $scriptblock = {Get-WmiObject win32_diskdrive | Select-Object pscomputername,DeviceID,Capabilities,CapabilityDescriptions,Caption,FirmwareRevision,Model,PNPDeviceID,SerialNumber}
-    $datapoints.Add([DataPoint]::new("DiskDrives", $scriptblock, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("DiskDrives", $scriptblock, $true, "T1083", [TechniqueCategory]::Discovery)) | Out-Null
 
     $scriptblock = {
         $modules = Get-Process -Module -ErrorAction SilentlyContinue
@@ -457,19 +460,19 @@ function New-DataPoints(){
     $datapoints.Add([DataPoint]::new("LoadedDLLs", $scriptblock, $true)) | Out-Null
 
     $scriptblock = {Get-ChildItem -path C:\Windows\System32\drivers -include *.sys -recurse -ea SilentlyContinue | Get-AuthenticodeSignature | Where-Object {$_.status -ne 'Valid'}}
-    $datapoints.Add([DataPoint]::new("UnsignedDrivers", $scriptblock, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("UnsignedDrivers", $scriptblock, $true, "T1553", [TechniqueCategory]::DefenseEvasion)) | Out-Null
 
     $scriptblock = {Get-HotFix -ErrorAction SilentlyContinue}
-    $datapoints.Add([DataPoint]::new("Hotfixes", $scriptblock, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("Hotfixes", $scriptblock, $true, "T1082", [TechniqueCategory]::Discovery)) | Out-Null
 
     $scriptblock = {try {Get-NetNeighbor -ErrorAction SilentlyContinue} catch {}}
-    $datapoints.Add([DataPoint]::new("ArpCache", $scriptblock, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("ArpCache", $scriptblock, $true, "T1018", [TechniqueCategory]::Discovery)) | Out-Null
 
     $scriptblock = {Get-WinEvent -FilterHashtable @{ LogName='System'; Id='7045'} -ErrorAction SilentlyContinue | Select-Object timecreated,message}
-    $datapoints.Add([DataPoint]::new("NewlyRegisteredServices", $scriptblock, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("NewlyRegisteredServices", $scriptblock, $true, "T1543.003", [TechniqueCategory]::Persistence)) | Out-Null
 
     $scriptblock = {Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\*' -Name *}
-    $datapoints.Add([DataPoint]::new("AppPaths", $scriptblock, $true )) | Out-Null
+    $datapoints.Add([DataPoint]::new("AppPaths", $scriptblock, $true, "T1546.012", [TechniqueCategory]::Persistence)) | Out-Null
 
     $scriptblock = {
                     if(!(test-path HKU:)){
@@ -483,7 +486,7 @@ function New-DataPoints(){
                     }
                 
                 }
-    $datapoints.Add([DataPoint]::new("UACBypassFodHelper", $scriptblock, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("UACBypassFodHelper", $scriptblock, $true, "T1548.002", [TechniqueCategory]::PrivilegeEscalation)) | Out-Null
 
     $scriptblock = {
                     $netshresults = (netsh wlan show networks mode=bssid);
@@ -561,7 +564,7 @@ function New-DataPoints(){
                     }
                                     
                 }
-    $datapoints.Add([DataPoint]::new("VisibleWirelessNetworks", $scriptblock, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("VisibleWirelessNetworks", $scriptblock, $true, "T1016", [TechniqueCategory]::Discovery)) | Out-Null
 
     $scriptblock = {
                     $netshresults = (netsh wlan show profiles);
@@ -583,10 +586,10 @@ function New-DataPoints(){
                     $networksarraylist
                 
                 }
-    $datapoints.Add([DataPoint]::new("HistoricalWiFiConnections", $scriptblock, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("HistoricalWiFiConnections", $scriptblock, $true, "T1016", [TechniqueCategory]::Discovery)) | Out-Null
 
     $scriptblock = {Get-WinEvent -FilterHashtable @{LogName='Microsoft-Windows-Windows Firewall With Advanced Security/Firewall'} -ErrorAction SilentlyContinue | Select-Object TimeCreated, Message}
-    $datapoints.Add([DataPoint]::new("HistoricalFirewallChanges", $scriptblock, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("HistoricalFirewallChanges", $scriptblock, $true, "T1562.004", [TechniqueCategory]::DefenseEvasion)) | Out-Null
 
     $scriptblock = {
                     $portProxies = [System.Collections.ArrayList]@();
@@ -626,7 +629,7 @@ function New-DataPoints(){
     $datapoints.Add([DataPoint]::new("CapabilityAccessManager", $scriptblock, $true)) | Out-Null
 
     $scriptblock = {try {Get-DnsClientServerAddress} catch {}}
-    $datapoints.Add([DataPoint]::new("DnsClientServerAddress", $scriptblock, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("DnsClientServerAddress", $scriptblock, $true, "T1016", [TechniqueCategory]::Discovery)) | Out-Null
 
     $scriptblock = {
                     Select-String -Path "C:\Users\*\AppData\Roaming\Microsoft\Windows\Start Menu\Programs\Startup\*.lnk" -Pattern "exe";
@@ -636,29 +639,29 @@ function New-DataPoints(){
                     Get-ChildItem -path "C:\Users\" -recurse -include *.lnk -ea SilentlyContinue | Select-String -Pattern "exe";
                     Get-ChildItem -path "C:\Users\" -recurse -include *.lnk -ea SilentlyContinue | Select-String -Pattern "dll";
                 }
-    $datapoints.Add([DataPoint]::new("ShortcutModifications", $scriptblock, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("ShortcutModifications", $scriptblock, $true, "T1547.009", [TechniqueCategory]::Persistence)) | Out-Null
 
     $scriptblock = {(Get-Process -Module -ea 0).FileName|Where-Object{$_ -notlike "*system32*"}|Select-String "Appdata","ProgramData","Temp","Users","public"|Get-unique|ForEach-Object{Get-FileHash -Path $_}}
     $datapoints.Add([DataPoint]::new("DLLsInTempDirs", $scriptblock, $true)) | Out-Null
 
     $scriptblock = {Get-WinEvent -Log 'Microsoft-Windows-TerminalServices-LocalSessionManager/Operational' -ErrorAction SilentlyContinue | Select-Object -exp Properties | Where-Object {$_.Value -like '*.*.*.*' } | Sort-Object Value -u }
-    $datapoints.Add([DataPoint]::new("RDPHistoricallyConnectedIPs", $scriptblock, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("RDPHistoricallyConnectedIPs", $scriptblock, $true, "T1021.001", [TechniqueCategory]::LateralMovement)) | Out-Null
 
     $scriptblock = {try {Get-MpComputerStatus} catch {}}
-    $datapoints.Add([DataPoint]::new("MpComputerStatus", $scriptblock, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("MpComputerStatus", $scriptblock, $true, "T1562.001", [TechniqueCategory]::DefenseEvasion)) | Out-Null
 
     $scriptblock = {try {Get-MpPreference} catch {}}
-    $datapoints.Add([DataPoint]::new("MpPreference", $scriptblock, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("MpPreference", $scriptblock, $true, "T1562.001", [TechniqueCategory]::DefenseEvasion)) | Out-Null
 
     # I need to go through the keys and pullout the actual dlls and stuff for the com objects.
     $scriptblock = {Get-ChildItem HKLM:\Software\Classes -ea 0| Where-Object {$_.PSChildName -match '^\w+\.\w+$' -and(Get-ItemProperty "$($_.PSPath)\CLSID" -ea 0)} | Select-Object Name}
-    $datapoints.Add([DataPoint]::new("COMObjects", $scriptblock, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("COMObjects", $scriptblock, $true, "T1546.015", [TechniqueCategory]::Persistence)) | Out-Null
 
     $scriptblock = {Get-WinEvent -FilterHashtable @{LogName='Microsoft-Windows-CodeIntegrity/Operational'} -ErrorAction SilentlyContinue | Where-Object{$_.leveldisplayname -eq 'Error'} | Select-Object Message, id, processid, timecreated}
-    $datapoints.Add([DataPoint]::new("CodeIntegrityLogs", $scriptblock, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("CodeIntegrityLogs", $scriptblock, $true, "T1553.006", [TechniqueCategory]::DefenseEvasion)) | Out-Null
 
     $scriptblock = {Get-WinEvent -FilterHashtable @{LogName='Security'} -ErrorAction SilentlyContinue | Where-Object{$_.id -eq 1102} | Select-Object TimeCreated, Id, Message}
-    $datapoints.Add([DataPoint]::new("SecurityLogCleared", $scriptblock, $true, "T1070.001", [TechniqueCategory]::Uncategorized, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("SecurityLogCleared", $scriptblock, $true, "T1070.001", [TechniqueCategory]::DefenseEvasion, $true)) | Out-Null
 
     $scriptblock = {
         $(
@@ -670,7 +673,7 @@ function New-DataPoints(){
             Get-ItemProperty "HKLM:\SOFTWARE\WOW6432Node\Microsoft\Cryptography\Providers\Trust\FinalPolicy\*" -name '$DLL', '$Function'
         )
     }
-    $datapoints.Add([DataPoint]::new("SIPandTrustProviderHijacking", $scriptblock, $true, "T1553.003", [TechniqueCategory]::Uncategorized)) | Out-Null
+    $datapoints.Add([DataPoint]::new("SIPandTrustProviderHijacking", $scriptblock, $true, "T1553.003", [TechniqueCategory]::DefenseEvasion)) | Out-Null
 
     $scriptblock = {
                     $regexa = '.+Domain="(.+)",Name="(.+)"$';
@@ -737,7 +740,7 @@ function New-DataPoints(){
                     $klistsarraylist
 
                     }
-    $datapoints.Add([DataPoint]::new("PassTheHash", $scriptblock, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("PassTheHash", $scriptblock, $true, "T1550.002", [TechniqueCategory]::CredentialAccess)) | Out-Null
 
     $scriptblock = {get-childitem \\.\pipe\ | Select-Object fullname}
     $datapoints.Add([DataPoint]::new("NamedPipes", $scriptblock, $true)) | Out-Null
@@ -814,13 +817,13 @@ function New-DataPoints(){
     $datapoints.Add([DataPoint]::new("RegistryRunKeys", $scriptblock, $true, "T1547.001", [TechniqueCategory]::Persistence, $true)) | Out-Null
 
     $scriptblock = {try {Get-MpPreference | Select-Object -ExpandProperty ExclusionPath} catch {}}
-    $datapoints.Add([DataPoint]::new("DefenderExclusionPath", $scriptblock, $true, "T1562.001", [TechniqueCategory]::ImpairDefenses, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("DefenderExclusionPath", $scriptblock, $true, "T1562.001", [TechniqueCategory]::DefenseEvasion, $true)) | Out-Null
 
     $scriptblock = {try {Get-MpPreference | Select-Object -ExpandProperty ExclusionIpAddress} catch {}}
-    $datapoints.Add([DataPoint]::new("DefenderExclusionIpAddress", $scriptblock, $true, "T1562.001", [TechniqueCategory]::ImpairDefenses, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("DefenderExclusionIpAddress", $scriptblock, $true, "T1562.001", [TechniqueCategory]::DefenseEvasion, $true)) | Out-Null
 
     $scriptblock = {try {Get-MpPreference | Select-Object -ExpandProperty ExclusionExtension} catch {}}
-    $datapoints.Add([DataPoint]::new("DefenderExclusionExtension", $scriptblock, $true, "T1562.001", [TechniqueCategory]::ImpairDefenses, $true)) | Out-Null
+    $datapoints.Add([DataPoint]::new("DefenderExclusionExtension", $scriptblock, $true, "T1562.001", [TechniqueCategory]::DefenseEvasion, $true)) | Out-Null
 
     return $datapoints
 }
