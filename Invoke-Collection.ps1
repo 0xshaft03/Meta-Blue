@@ -6,7 +6,7 @@ function Invoke-Collection {
     Collect forensic data points from local or remote Windows hosts.
 
 .DESCRIPTION
-    Invoke-Collection is part of the Meta-Blue forensics framework. It runs 76
+    Invoke-Collection is part of the Meta-Blue forensics framework. It runs 84
     MITRE ATT&CK-aligned data points against local or remote Windows hosts via
     PowerShell background jobs (local) or WinRM runspace pools (remote).
 
@@ -27,7 +27,7 @@ function Invoke-Collection {
 
 .PARAMETER LocalCollectByName
     Collect specific data points by name on the local machine.
-    Accepts one or more values from the built-in ValidateSet (76 names).
+    Accepts one or more values from the built-in ValidateSet (84 names).
 
 .PARAMETER LocalCollectByCategory
     Collect data points matching a MITRE ATT&CK tactic on the local
@@ -75,6 +75,12 @@ function Invoke-Collection {
     parameter sets (LocalCollectAll, RemoteCollectByName, etc.). Names that
     don't match any configured data point are silently ignored.
 
+.PARAMETER PassThru
+    Emit row objects to the pipeline in addition to writing CSV/JSON files.
+    Each row is tagged with `DataPoint` (the data point name) and
+    `ComputerName` note properties so multi-DP / multi-host streams remain
+    groupable. Files and manifest are still written normally.
+
 .EXAMPLE
     Invoke-Collection -LocalCollectAll -OutFolder C:\Results -OutputFormat json
 
@@ -104,6 +110,14 @@ function Invoke-Collection {
     Invoke-Collection -LocalCollectAll -Except ProgramData -OutFolder C:\Results
 
     Collect all data points except ProgramData.
+
+.EXAMPLE
+    Invoke-Collection -LocalCollectByName UnquotedServicePaths -PassThru |
+        Where-Object FirstWritableSegment |
+        Format-Table
+
+    Collect UnquotedServicePaths and stream rows to the pipeline. Files are
+    still written under -OutFolder; -PassThru just additionally emits objects.
 
 .INPUTS
     None. Does not accept pipeline input.
@@ -138,7 +152,9 @@ function Invoke-Collection {
         "HistoricalFirewallChanges","PortProxies","CapabilityAccessManager","DnsClientServerAddress","ShortcutModifications",
         "DLLsInTempDirs","RDPHistoricallyConnectedIPs","MpComputerStatus","MpPreference","COMObjects","CodeIntegrityLogs",
         "SecurityLogCleared","SIPandTrustProviderHijacking","PassTheHash","NamedPipes","RegistryRunKeys","DefenderExclusionPath",
-        "DefenderExclusionIpAddress","DefenderExclusionExtension")]
+        "DefenderExclusionIpAddress","DefenderExclusionExtension",
+        "AlwaysInstallElevated","AutologonCredentials","LocalAdministrators","UnquotedServicePaths","WeakServiceACLs",
+        "WeakServiceBinaryACLs","WeakRegistryServiceACLs","WritablePathDirectories")]
         [String[]]$LocalCollectByName,
 
         [Parameter(ParameterSetName = 'LocalCollectByCategory')]
@@ -160,7 +176,9 @@ function Invoke-Collection {
         "HistoricalFirewallChanges","PortProxies","CapabilityAccessManager","DnsClientServerAddress","ShortcutModifications",
         "DLLsInTempDirs","RDPHistoricallyConnectedIPs","MpComputerStatus","MpPreference","COMObjects","CodeIntegrityLogs",
         "SecurityLogCleared","SIPandTrustProviderHijacking","PassTheHash","NamedPipes","RegistryRunKeys","DefenderExclusionPath",
-        "DefenderExclusionIpAddress","DefenderExclusionExtension")]
+        "DefenderExclusionIpAddress","DefenderExclusionExtension",
+        "AlwaysInstallElevated","AutologonCredentials","LocalAdministrators","UnquotedServicePaths","WeakServiceACLs",
+        "WeakServiceBinaryACLs","WeakRegistryServiceACLs","WritablePathDirectories")]
         [String[]]$RemoteCollectByName,
 
         [Parameter(ParameterSetName = 'RemoteCollectByCategory')]
@@ -183,6 +201,9 @@ function Invoke-Collection {
 
         [Parameter()]
         [string[]]$Except,
+
+        [Parameter()]
+        [switch]$PassThru,
 
         [Parameter(ParameterSetName = 'RemoteCollectAll')]
         [Parameter(ParameterSetName = 'RemoteCollectByName')]
@@ -282,7 +303,7 @@ function Invoke-Collection {
                 if($LocalCollectByName){
                     foreach($datapoint in $datapoints){
                         if($LocalCollectByName.Contains($datapoint.jobname)){
-                            Start-Job -Name $datapoint.jobname -ScriptBlock $datapoint.scriptblock
+                            Start-Job -Name $datapoint.jobname -ScriptBlock $datapoint.scriptblock | Out-Null
                         }
                     }
 
@@ -290,17 +311,17 @@ function Invoke-Collection {
             } elseif ($LocalCollectAll) {
                 Write-Verbose "Collecting: $datapoints"
                 foreach($datapoint in $datapoints){
-                    Start-Job -Name $datapoint.jobname -ScriptBlock $datapoint.scriptblock
+                    Start-Job -Name $datapoint.jobname -ScriptBlock $datapoint.scriptblock | Out-Null
                 }
             } elseif ($LocalCollectByCategory) {
                 Write-Verbose "Collecting from category: $LocalCollectByCategory"
                 foreach($datapoint in $datapoints){
                     if($datapoint.techniqueCategory -eq $LocalCollectByCategory){
-                        Start-Job -Name $datapoint.jobname -ScriptBlock $datapoint.scriptblock
+                        Start-Job -Name $datapoint.jobname -ScriptBlock $datapoint.scriptblock | Out-Null
                     }
                 }
             }
-            Get-Artifact -rawFolder $global:rawFolder
+            Get-Artifact -rawFolder $global:rawFolder -PassThru:$PassThru
             
 
         } elseif ($PSCmdlet.ParameterSetName -like "Remote*") {
@@ -368,7 +389,7 @@ function Invoke-Collection {
                     }
                 }
             }
-            Get-ArtifactFromRemoteRunspacePool -RemoteJobs $RemoteJobs -rawFolder $global:rawFolder
+            Get-ArtifactFromRemoteRunspacePool -RemoteJobs $RemoteJobs -rawFolder $global:rawFolder -PassThru:$PassThru
         }
 
         $manifestPath = "$OutFolder\$timestamp\collection.json"
