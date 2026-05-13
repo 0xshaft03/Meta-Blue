@@ -2,7 +2,7 @@
 
 ## What it is
 
-PowerShell-based Windows host forensic collection framework. Collects 76
+PowerShell-based Windows host forensic collection framework. Collects 84
 MITRE ATT&CK-aligned data points from local or remote hosts.
 
 **Core design: LFO (Least Frequency of Occurrence) analysis.** Every data
@@ -35,8 +35,9 @@ service path that doesn't match the median.
 - `Modules/DataPoint/` — `DataPoint` class, `TechniqueCategory` enum
   (Uncategorized, Persistence, Discovery, DefenseEvasion, LateralMovement,
   CommandAndControl, PrivilegeEscalation, CredentialAccess),
-  `New-DataPoints()` factory (76 data points; 32 Persistence, 19 Discovery,
-  11 DefenseEvasion, 10 Uncategorized, 1 each of the rest).
+  `New-DataPoints()` factory (84 data points; 32 Persistence, 19 Discovery,
+  11 DefenseEvasion, 11 Uncategorized, 8 PrivilegeEscalation, 1 each of
+  LateralMovement / CommandAndControl / CredentialAccess).
 - `Modules/JobController/` — `Get-Artifact` (local job reaping),
   `New-RemoteRunspacePool`, `Get-ArtifactFromRemoteRunspacePool`
   (non-blocking `WaitHandle.WaitAny()` polling, tiered timeout, `List[PSObject]`).
@@ -59,7 +60,7 @@ using module .\Modules\DataPoint\DataPoint.psm1
 using module .\Modules\JobController\JobController.psm1
 . .\Invoke-Collection.ps1
 
-# All 76 data points locally
+# All 84 data points locally
 Invoke-Collection -LocalCollectAll -OutFolder C:\Results
 
 # Quick triage (~20 highest-signal data points, finishes in seconds)
@@ -87,13 +88,13 @@ Invoke-BaselineDiff -CurrentPath C:\Results\2025_02_01_14_00_00 -BaselinePath C:
 
 | Parameter | Sets | Purpose |
 |---|---|---|
-| `-LocalCollectAll` | Local | Collect all 76 data points on local host |
+| `-LocalCollectAll` | Local | Collect all 84 data points on local host |
 | `-LocalCollectByName` | Local | Collect specific DPs by name (tab-completable) |
 | `-LocalCollectByCategory` | Local | Collect DPs matching a technique category |
-| `-RemoteCollectAll` | Remote | Collect all 76 from remote hosts |
+| `-RemoteCollectAll` | Remote | Collect all 84 from remote hosts |
 | `-RemoteCollectByName` | Remote | Collect specific DPs from remote hosts |
 | `-RemoteCollectByCategory` | Remote | Collect DPs by category from remote hosts |
-| `-CollectionProfile` | All | `Quick` (~20 fast DPs) or `Full` (all 76, default) |
+| `-CollectionProfile` | All | `Quick` (~24 fast DPs) or `Full` (all 84, default) |
 | `-Except` | All | Exclude specific DPs by name (works with any set) |
 | `-ComputerSet` | Remote | `ActiveDirectoryComputers`, `TextFile`, `CSVFile` |
 | `-OutFolder` | All | Output parent directory (default: C:\Meta-Blue) |
@@ -140,19 +141,42 @@ dynamic property names):
 - **`RegistryRunKeys` is the largest data point** — iterates all HKU SIDs
   × 10+ reg paths per user. Also has a single-SID array coercion bug
   and no HKU PSDrive guard. Needs restructuring for stacking.
-- **MITRE tactic categories backfilled** — 66 of 76 data points now have
+- **MITRE tactic categories backfilled** — 73 of 84 data points now have
   an explicit `TechniqueCategory`. Counts: 32 Persistence, 19 Discovery,
-  11 DefenseEvasion, 1 each of LateralMovement / CommandAndControl /
-  PrivilegeEscalation / CredentialAccess. 10 data points are still
+  11 DefenseEvasion, 8 PrivilegeEscalation, 1 each of LateralMovement /
+  CommandAndControl / CredentialAccess. 11 data points remain
   Uncategorized either because they are flagged low-quality
-  (`ProgramData`, `KnownDLLs`, `Startup`) or genuinely span multiple
+  (`ProgramData`, `KnownDLLs`, `Startup`), genuinely span multiple
   tactics (`Logon`, `SMBConnections`, `PrefetchListing`, `LoadedDLLs`,
-  `CapabilityAccessManager`, `DLLsInTempDirs`, `NamedPipes`). The old
-  `ImpairDefenses` enum value was renamed to `DefenseEvasion` (breaking
-  rename; only used internally).
+  `CapabilityAccessManager`, `DLLsInTempDirs`, `NamedPipes`), or are
+  dual-purpose like `LocalAdministrators`. The old `ImpairDefenses`
+  enum value was renamed to `DefenseEvasion` (breaking rename; only
+  used internally).
+- **WinPEAS-inspired privilege escalation surface inventory** — Phase 1
+  added 8 data points that surface common Windows priv-esc primitives so
+  they can be LFO-stacked across a fleet: `UnquotedServicePaths`,
+  `WeakServiceACLs`, `WeakServiceBinaryACLs`, `WeakRegistryServiceACLs`,
+  `AlwaysInstallElevated`, `AutologonCredentials`, `WritablePathDirectories`,
+  `LocalAdministrators`. ACL data points emit one row per ACE (flat schema,
+  no noise filtering — the analyst filters at query time). The ACL
+  enumerators (`WeakServiceACLs`, `WeakServiceBinaryACLs`,
+  `WeakRegistryServiceACLs`, `WritablePathDirectories`) are heavy and not
+  in the Quick profile. `AutologonCredentials` emits booleans for password
+  presence only — never the password value itself.
 - **`$collection.json` manifest** is written automatically with every
   collection run. Contains timestamp, computer name, profile, data point
   list, and per-DP row counts.
+- **`-PassThru` switch** emits row objects to the pipeline in addition to
+  writing CSV/JSON files. Each row is augmented with `DataPoint` (job name)
+  and `ComputerName` note properties via `Add-Member -Force` so multi-DP
+  and multi-host streams remain groupable downstream. Works for both local
+  (`Get-Artifact`) and remote (`Get-ArtifactFromRemoteRunspacePool`) paths.
+  Files and the `collection.json` manifest are still written as normal;
+  `-PassThru` is purely additive.
+- **`Start-Job` stdout suppressed** — every `Start-Job` call in
+  `Invoke-Collection` is now piped to `Out-Null` so raw Job objects don't
+  pollute the pipeline (mandatory for clean `-PassThru` output, benefits
+  non-PassThru users too).
 
 ## Git conventions
 
