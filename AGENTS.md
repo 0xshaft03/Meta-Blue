@@ -123,9 +123,8 @@ dynamic property names):
   `Startup`, `Services` are flagged).
 - **`JobController.psd1` has `FunctionsToExport = @()`** — functions are
   accessible via `using module` but not auto-discovered by `Get-Command`.
-- **`Get-Artifact` now polls every 1 second** (was 10s), uses `-Stream`
-  for incremental output, and handles unexpected job states (`Blocked`,
-  `Suspended`, `Stopped`) instead of hanging forever.
+- **`Get-Artifact` now polls every 1 second** (was 10s) and handles unexpected
+  job states (`Blocked`, `Suspended`, `Stopped`) instead of hanging forever.
 - **Remote collection** uses runspace pools (WinRM, up to 75 concurrent)
   and writes per-host CSVs to `$rawFolder\<ComputerName>\` instead of
   stacking all hosts into one CSV. Per-host `PSComputerName` tagging is
