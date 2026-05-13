@@ -12,16 +12,51 @@ MITRE ATT&CK-aligned data points from local or remote hosts.
 
 ## Design philosophy
 
-Meta-Blue is built for **cross-machine stacking**, not single-host triage.
+Meta-Blue is **agentless**, **state-based**, and built for **fleet-wide
+stacking**. Each of these is deliberate.
+
+### Agentless
+
+Meta-Blue installs nothing. It ships no driver, no service, no scheduled
+task, no telemetry pipeline. A collection run uses only what's already
+on the box (PowerShell 5.1, WMI, the registry) and writes its output
+to a folder you choose. When the run is over, nothing persists.
+
+This matters in environments where you can't deploy agents: air-gapped
+networks, OT/ICS segments, contractually restricted estates, vendor
+appliances, hosts your team doesn't own. It also matters in environments
+that *used* to deploy agents and have since pulled back — the
+July 2024 EDR kernel-driver incident that grounded airlines and stalled
+hospitals reminded everyone that an agent on every host is also a single
+point of failure on every host. Meta-Blue is something you run *at* a
+fleet, not something you live *on* the fleet.
+
+### State-based, not event-based
+
+Modern EDR/XDR platforms are event-driven: they ingest a stream of
+process creations, network connections, file writes, and registry edits
+*as they happen*, and let you query the stream after the fact. That model
+is powerful, but it has a blind spot — **it can only see what happened
+since the agent was installed**. An adversary who established persistence
+last year, before your EDR rollout, leaves no event for your event
+pipeline to catch.
+
+Meta-Blue inverts the model. It snapshots the *state* of each host: the
+current contents of every Run key, the current Defender exclusions, the
+current scheduled tasks, the current local Administrator group. Whether
+that state was placed there yesterday or three years ago doesn't matter
+— if it's there now, Meta-Blue sees it.
+
+### Built for LFO stacking
+
 Every data point is designed to return structured rows so that the same
 data point's output from N hosts can be concatenated and analyzed with
 **LFO** (Least Frequency of Occurrence) techniques: the values appearing
-on a small minority of hosts are your investigative leads.
-
-The single host with a unique startup key, the one machine missing a
-Defender exclusion, the odd service path that doesn't match the median —
-these are the kinds of outliers Meta-Blue surfaces by collecting
-consistent, comparable rows from every host in scope.
+on a small minority of hosts are your investigative leads. The single
+host with a unique startup key, the one machine missing a Defender
+exclusion, the odd service path that doesn't match the median — these
+are the kinds of outliers Meta-Blue surfaces by collecting consistent,
+comparable rows from every host in scope.
 
 Tools like WinPEAS catalog "what's exploitable on this host." Meta-Blue
 catalogs the same surface, but in a row schema you can stack across a
