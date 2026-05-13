@@ -1,6 +1,6 @@
 # Meta-Blue
 
-PowerShell-based Windows hunt framework. Collects 76
+PowerShell-based Windows hunt framework. Collects 84
 MITRE ATT&CK-aligned data points from local or remote hosts.
 
 ## Prerequisites
@@ -19,7 +19,7 @@ using module .\Modules\DataPoint\DataPoint.psm1
 using module .\Modules\JobController\JobController.psm1
 . .\Invoke-Collection.ps1
 
-# Collect all 76 data points on the local machine
+# Collect all 84 data points on the local machine
 Invoke-Collection -LocalCollectAll -OutFolder C:\Results
 ```
 
@@ -42,6 +42,20 @@ Invoke-Collection -RemoteCollectAll -ComputerSet ActiveDirectory -OutFolder C:\R
 
 # Choose output format (csv or json)
 Invoke-Collection -LocalCollectAll -OutFolder C:\Results -OutputFormat json
+
+# Pipeline mode — emit row objects to stdout (files still written)
+Invoke-Collection -LocalCollectByName UnquotedServicePaths -PassThru |
+    Where-Object FirstWritableSegment |
+    Format-Table
+```
+
+With `-PassThru`, every row is tagged with `DataPoint` and `ComputerName`
+note properties so multi-data-point or multi-host streams can be grouped
+downstream:
+
+```powershell
+Invoke-Collection -LocalCollectByName LocalAdministrators,Services -PassThru |
+    Group-Object DataPoint
 ```
 
 ## Baseline diff
@@ -82,7 +96,7 @@ Output is written to `CurrentPath\Anomalies\` as `<DataPoint>-Added.csv` and
 
 | Module | Purpose |
 |---|---|
-| `Modules/DataPoint/` | DataPoint class, TechniqueCategory enum (8 MITRE tactic values), 76 data point factory, Quick profile flag |
+| `Modules/DataPoint/` | DataPoint class, TechniqueCategory enum (8 MITRE tactic values), 84 data point factory, Quick profile flag |
 | `Modules/JobController/` | Background job reaping and WinRM runspace pool management |
 | `Modules/Node/` | Simple node class with 4 string properties |
 
