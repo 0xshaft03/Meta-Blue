@@ -244,7 +244,7 @@ function Get-Artifact() {
 
             switch ($job.State) {
                 'Completed' {
-                    Receive-Job -Id $jobId -Stream |
+                    Receive-Job -Id $jobId |
                         Export-Csv -Force -Append -NoTypeInformation -Path $filePath
                     if (-not $job.HasMoreData) {
                         Remove-Job -Id $jobId -Force
@@ -259,7 +259,7 @@ function Get-Artifact() {
                     $remaining++
                 }
                 'Stopped' {
-                    Receive-Job -Id $jobId -Stream |
+                    Receive-Job -Id $jobId |
                         Export-Csv -Force -Append -NoTypeInformation -Path $filePath
                     Remove-Job -Id $jobId -Force
                 }
