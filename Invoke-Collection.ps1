@@ -14,9 +14,13 @@ function Invoke-Collection {
       LocalCollectAll / LocalCollectByName / LocalCollectByCategory
       RemoteCollectAll / RemoteCollectByName / RemoteCollectByCategory
 
+    Use -CollectionProfile Quick to collect only the highest-signal, fastest
+    data points (~20) for rapid triage.
+
     Output is written as CSV or JSON files under
     <OutFolder>\<timestamp>\Raw\  — one file per data point for local runs,
     or per-host per data point for remote runs.
+    A collection.json manifest is also written to the timestamp root.
 
 .PARAMETER LocalCollectAll
     Collect all data points on the local machine.
@@ -39,6 +43,11 @@ function Invoke-Collection {
 .PARAMETER RemoteCollectByCategory
     Collect data points matching a technique category from remote hosts.
 
+.PARAMETER CollectionProfile
+    Collection scope profile. Full collects all data points (default).
+    Quick collects the highest-signal, fastest data points (~20) for
+    rapid daily triage.
+
 .PARAMETER ComputerSet
     Source of remote target computers. Valid values:
       ActiveDirectoryComputers — pulls from AD (requires ActiveDirectory module)
@@ -57,6 +66,11 @@ function Invoke-Collection {
 
 .PARAMETER OutputFormat
     Output file format. Valid values: csv, json. Default: csv.
+
+.PARAMETER Except
+    One or more data point names to exclude from collection. Works with all
+    parameter sets (LocalCollectAll, RemoteCollectByName, etc.). Names that
+    don't match any configured data point are silently ignored.
 
 .EXAMPLE
     Invoke-Collection -LocalCollectAll -OutFolder C:\Results -OutputFormat json
@@ -78,12 +92,23 @@ function Invoke-Collection {
 
     Collect all data points in the Persistence category on the local machine.
 
+.EXAMPLE
+    Invoke-Collection -LocalCollectAll -CollectionProfile Quick -OutFolder C:\Results
+
+    Collect only the ~20 highest-signal data points for rapid triage.
+
+.EXAMPLE
+    Invoke-Collection -LocalCollectAll -Except ProgramData -OutFolder C:\Results
+
+    Collect all data points except ProgramData.
+
 .INPUTS
     None. Does not accept pipeline input.
 
 .OUTPUTS
     CSV or JSON files. One file per data point (local) or one per-host
     folder with per-data-point files (remote).
+    A collection.json manifest is written alongside the Raw folder.
 
 .NOTES
     Author: 0xshaft03
@@ -153,6 +178,9 @@ function Invoke-Collection {
         [ValidateNotNullOrEmpty()]
         [string]$Subnet,
 
+        [Parameter()]
+        [string[]]$Except,
+
         [Parameter(ParameterSetName = 'RemoteCollectAll')]
         [Parameter(ParameterSetName = 'RemoteCollectByName')]
         [Parameter(ParameterSetName = 'RemoteCollectByCategory')]
@@ -161,6 +189,9 @@ function Invoke-Collection {
         [ValidateSet('ActiveDirectoryComputers', 'TextFile', 'CSVFile')]
         [string]$ComputerSet,
         
+        [ValidateSet('Quick','Full')]
+        [string]$CollectionProfile = 'Full',
+
         [Parameter()]
         [string]$OutFolder = "C:\Meta-Blue",
 
@@ -179,7 +210,22 @@ function Invoke-Collection {
         Write-Verbose "Folder Timestamp: $timestamp"
 
         $datapoints = New-DataPoints
-        Write-Verbose "$($datapoints.Count) DataPoints configured"
+        if ($CollectionProfile -eq 'Quick') {
+            $datapoints = [System.Collections.ArrayList]@($datapoints | Where-Object { $_.isQuick })
+            Write-Verbose "Quick profile: $($datapoints.Count) DataPoints configured"
+        } else {
+            Write-Verbose "$($datapoints.Count) DataPoints configured"
+        }
+
+        if ($Except) {
+            $excluded = @($datapoints | Where-Object { $_.jobname -in $Except })
+            $datapoints = [System.Collections.ArrayList]@($datapoints | Where-Object { $_.jobname -notin $Except })
+            if ($excluded.Count -gt 0) {
+                Write-Verbose "Excluded: $($excluded.ForEach({$_.jobname}) -join ', ')"
+            } else {
+                Write-Verbose "No data points matched -Except names (ignored)"
+            }
+        }
 
         $global:rawFolder = "$OutFolder\$timestamp\Raw"
         Write-Verbose "Raw collect will be saved here: $global:rawFolder"
@@ -257,7 +303,7 @@ function Invoke-Collection {
         } elseif ($PSCmdlet.ParameterSetName -like "Remote*") {
             Write-Verbose "Starting the Remote Collector"
             $RemoteRunspaces = [System.Collections.ArrayList]@()
-            $RemoteJobs = [System.Collections.ArrayList]@()
+            $RemoteJobs = New-Object System.Collections.Generic.List[PSObject]
             
             if($ComputerSet -eq "ActiveDirectoryComputers"){
                 try {
@@ -286,7 +332,7 @@ function Invoke-Collection {
                             foreach($RemoteRunspace in $RemoteRunspaces){
                                 $RemoteJob = New-RemoteRunspacePoolScriptBlock -HostRunspacePool $RemoteRunspace -ScriptBlock $datapoint.scriptblock -Datapointname $datapoint.jobname
                                 if($RemoteJob){
-                                    $RemoteJobs.Add($RemoteJob) | Out-Null
+                                    $RemoteJobs.Add($RemoteJob)
                                 }
                             }
                         }
@@ -298,7 +344,7 @@ function Invoke-Collection {
                                 foreach($RemoteRunspace in $RemoteRunspaces){
                                     $RemoteJob = New-RemoteRunspacePoolScriptBlock -HostRunspacePool $RemoteRunspace -ScriptBlock $datapoint.scriptblock -Datapointname $datapoint.jobname
                                     if($RemoteJob){
-                                        $RemoteJobs.Add($RemoteJob) | Out-Null
+                                        $RemoteJobs.Add($RemoteJob)
                                     }
                                 }
                             }
@@ -311,7 +357,7 @@ function Invoke-Collection {
                                 foreach($RemoteRunspace in $RemoteRunspaces){
                                     $RemoteJob = New-RemoteRunspacePoolScriptBlock -HostRunspacePool $RemoteRunspace -ScriptBlock $datapoint.scriptblock -Datapointname $datapoint.jobname
                                     if($RemoteJob){
-                                        $RemoteJobs.Add($RemoteJob) | Out-Null
+                                        $RemoteJobs.Add($RemoteJob)
                                     }
                                 }
                             }
@@ -320,6 +366,36 @@ function Invoke-Collection {
                 }
             }
             Get-ArtifactFromRemoteRunspacePool -RemoteJobs $RemoteJobs -rawFolder $global:rawFolder
+        }
+
+        $manifestPath = "$OutFolder\$timestamp\collection.json"
+        if (Test-Path -LiteralPath $global:rawFolder) {
+            $dpRowCounts = @{}
+            Get-ChildItem -Path "$global:rawFolder\*" -Include '*.csv','*.json' -Recurse -ErrorAction SilentlyContinue | ForEach-Object {
+                $name = $_.BaseName
+                if (-not $dpRowCounts.ContainsKey($name)) {
+                    $dpRowCounts[$name] = 0
+                }
+                if ($_.Extension -eq '.csv') {
+                    $rows = (Get-Content -LiteralPath $_.FullName | Where-Object { $_.Trim().Length -gt 0 }).Count
+                    $headerRow = 1
+                    $dpRowCounts[$name] += [Math]::Max(0, $rows - $headerRow)
+                }
+            }
+            $manifest = [PSCustomObject]@{
+                CollectionTimestamp = $timestamp
+                ComputerName        = $env:COMPUTERNAME
+                ParameterSet        = $PSCmdlet.ParameterSetName
+                CollectionProfile   = $CollectionProfile
+                ComputerSet         = if ($ComputerSet) { $ComputerSet } else { $null }
+                OutputFormat        = $OutputFormat
+                DataPointsCollected = @($datapoints | ForEach-Object { $_.jobname })
+                DataPointRowCounts  = $dpRowCounts
+                CollectionRoot      = "$OutFolder\$timestamp"
+                RawFolder           = $global:rawFolder
+            }
+            $manifest | ConvertTo-Json -Depth 3 | Set-Content -LiteralPath $manifestPath
+            Write-Verbose "Manifest written: $manifestPath"
         }
 
     }
