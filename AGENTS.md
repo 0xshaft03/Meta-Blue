@@ -32,8 +32,11 @@ service path that doesn't match the median.
 
 ## Directory layout
 
-- `Modules/DataPoint/` — `DataPoint` class, `TechniqueCategory` enum,
-  `New-DataPoints()` factory (76 data points, 25 tagged Persistence).
+- `Modules/DataPoint/` — `DataPoint` class, `TechniqueCategory` enum
+  (Uncategorized, Persistence, Discovery, DefenseEvasion, LateralMovement,
+  CommandAndControl, PrivilegeEscalation, CredentialAccess),
+  `New-DataPoints()` factory (76 data points; 32 Persistence, 19 Discovery,
+  11 DefenseEvasion, 10 Uncategorized, 1 each of the rest).
 - `Modules/JobController/` — `Get-Artifact` (local job reaping),
   `New-RemoteRunspacePool`, `Get-ArtifactFromRemoteRunspacePool`
   (non-blocking `WaitHandle.WaitAny()` polling, tiered timeout, `List[PSObject]`).
@@ -68,7 +71,8 @@ Invoke-Collection -LocalCollectAll -Except ProgramData,KnownDLLs -OutFolder C:\R
 # Specific data points by name
 Invoke-Collection -LocalCollectByName Processes,Services -OutFolder C:\Results
 
-# By MITRE technique category (25 Persistence data points now properly categorized)
+# By MITRE tactic (Persistence, Discovery, DefenseEvasion, LateralMovement,
+# CommandAndControl, PrivilegeEscalation, CredentialAccess, Uncategorized)
 Invoke-Collection -LocalCollectByCategory Persistence -OutFolder C:\Results
 
 # Remote collection across Active Directory
@@ -136,10 +140,16 @@ dynamic property names):
 - **`RegistryRunKeys` is the largest data point** — iterates all HKU SIDs
   × 10+ reg paths per user. Also has a single-SID array coercion bug
   and no HKU PSDrive guard. Needs restructuring for stacking.
-- **Persistence category works now** — all 25 T1546/T1547/T1053/T1197/
-  T1505/T1543/T1574 data points were recategorized from `Uncategorized`
-  to `Persistence`. `-LocalCollectByCategory Persistence` no longer
-  returns empty.
+- **MITRE tactic categories backfilled** — 66 of 76 data points now have
+  an explicit `TechniqueCategory`. Counts: 32 Persistence, 19 Discovery,
+  11 DefenseEvasion, 1 each of LateralMovement / CommandAndControl /
+  PrivilegeEscalation / CredentialAccess. 10 data points are still
+  Uncategorized either because they are flagged low-quality
+  (`ProgramData`, `KnownDLLs`, `Startup`) or genuinely span multiple
+  tactics (`Logon`, `SMBConnections`, `PrefetchListing`, `LoadedDLLs`,
+  `CapabilityAccessManager`, `DLLsInTempDirs`, `NamedPipes`). The old
+  `ImpairDefenses` enum value was renamed to `DefenseEvasion` (breaking
+  rename; only used internally).
 - **`$collection.json` manifest** is written automatically with every
   collection run. Contains timestamp, computer name, profile, data point
   list, and per-DP row counts.
