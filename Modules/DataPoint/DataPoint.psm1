@@ -3,6 +3,7 @@ enum TechniqueCategory {
     Persistence
     LateralMovement
     ImpairDefenses
+    CommandAndControl
 }
 class DataPoint {
     [string]$jobname
@@ -121,21 +122,36 @@ function New-DataPoints(){
     $datapoints.Add([DataPoint]::new("ImageFileExecutionOptions", $scriptblock, $true, "T1546.012", [TechniqueCategory]::Persistence, $true)) | Out-Null
 
     $scriptblock = {
-                    $profilePaths = @(
-                        "$pshome\profile.ps1",
-                        "$pshome\Microsoft.PowerShell_profile.ps1"
-                    )
-                    Get-ChildItem C:\Users\* -Directory -ErrorAction SilentlyContinue | ForEach-Object {
-                        $userDoc = $_.FullName
-                        $profilePaths += "$userDoc\Documents\WindowsPowerShell\Profile.ps1"
-                        $profilePaths += "$userDoc\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1"
-                        $profilePaths += "$userDoc\Documents\PowerShell\Profile.ps1"
-                        $profilePaths += "$userDoc\Documents\PowerShell\Microsoft.PowerShell_profile.ps1"
-                    }
-                    $profilePaths | Where-Object { Test-Path $_ } | ForEach-Object {
-                        Get-Item $_ | Select-Object FullName, Length, LastWriteTime, @{N='Hash';E={(Get-FileHash $_ -ea SilentlyContinue).Hash}}
+                $results = [System.Collections.ArrayList]@()
+
+                $systemPaths = @(
+                    "$pshome\profile.ps1",
+                    "$pshome\Microsoft.PowerShell_profile.ps1"
+                )
+                foreach ($path in $systemPaths) {
+                    if (Test-Path $path) {
+                        $results.Add((Get-Item $path | Select-Object FullName, Length, LastWriteTime, @{N='Hash';E={(Get-FileHash $path -ea SilentlyContinue).Hash}}, @{N='Username';E={'ALL USERS'}})) | Out-Null
                     }
                 }
+
+                foreach ($userDir in (Get-ChildItem C:\Users\* -Directory -ErrorAction SilentlyContinue)) {
+                    $userDoc = $userDir.FullName
+                    $userName = $userDir.Name
+                    $userPaths = @(
+                        "$userDoc\Documents\WindowsPowerShell\Profile.ps1",
+                        "$userDoc\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1",
+                        "$userDoc\Documents\PowerShell\Profile.ps1",
+                        "$userDoc\Documents\PowerShell\Microsoft.PowerShell_profile.ps1"
+                    )
+                    foreach ($path in $userPaths) {
+                        if (Test-Path $path) {
+                            $results.Add((Get-Item $path | Select-Object FullName, Length, LastWriteTime, @{N='Hash';E={(Get-FileHash $path -ea SilentlyContinue).Hash}}, @{N='Username';E={$userName}})) | Out-Null
+                        }
+                    }
+                }
+
+                $results
+            }
     $datapoints.Add([DataPoint]::new("PowershellProfile", $scriptblock, $true, "T1546.013", [TechniqueCategory]::Persistence)) | Out-Null
 
     $scriptblock = {get-itemproperty HKLM:\SYSTEM\CurrentControlSet\Control\Lsa\ -name "Authentication Packages"}
@@ -573,22 +589,38 @@ function New-DataPoints(){
     $datapoints.Add([DataPoint]::new("HistoricalFirewallChanges", $scriptblock, $true)) | Out-Null
 
     $scriptblock = {
-                    $portproxyResults = (netsh interface portproxy show all);
-                    $portproxyarraylist = [System.Collections.ArrayList]@();
-                    if((($portproxyResults.gettype()).basetype.name -eq "Array") -and ($portproxyResults.count -gt 0)){
-                        for($i = 5; $i -lt ($portproxyResults.Length); $i++){
-                            $portproxyObject = [PSCustomObject]@{
-                                proxy = ""
-                            }
-                            $portproxyObject.proxy = $portproxyResults[$i]
+                    $portProxies = [System.Collections.ArrayList]@();
+                    $portProxyRoot = 'HKLM:\SYSTEM\CurrentControlSet\Services\PortProxy'
+                    $directions = @('v4tov4', 'v4tov6', 'v6tov4', 'v6tov6')
+                    foreach ($direction in $directions) {
+                        $subkey = Join-Path $portProxyRoot "$direction\tcp"
+                        if (-not (Test-Path -LiteralPath $subkey)) { continue }
 
-                            $portproxyarraylist.Add($portproxyObject) | Out-Null
+                        try {
+                            $props = Get-ItemProperty -LiteralPath $subkey -ErrorAction Stop
+                        } catch {
+                            continue
                         }
-                        $portproxyarraylist
-                    }
-                                    
+
+                        $props.PSObject.Properties |
+                            Where-Object { $_.Name -notmatch '^PS(Path|ParentPath|ChildName|Drive|Provider)$' } |
+                            ForEach-Object {
+                                $listen  = $_.Name  -split '/', 2
+                                $connect = $_.Value -split '/', 2
+
+                                $portProxies.Add([PSCustomObject]@{
+                                    Direction       = $direction
+                                    Protocol        = 'tcp'
+                                    ListenAddress   = $listen[0]
+                                    ListenPort      = $listen[1]
+                                    ConnectAddress  = $connect[0]
+                                    ConnectPort     = $connect[1]
+                                    RegistryPath    = $subkey
+                                }) | Out-Null
+                            }
+                    } $portProxies
                 }
-    $datapoints.Add([DataPoint]::new("PortProxies", $scriptblock, $true, "T1090", [TechniqueCategory]::Uncategorized)) | Out-Null
+    $datapoints.Add([DataPoint]::new("PortProxies", $scriptblock, $true, "T1090.001", [TechniqueCategory]::CommandAndControl)) | Out-Null
 
     $scriptblock = {(Get-ItemProperty HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\*\NonPackaged\*)}
     $datapoints.Add([DataPoint]::new("CapabilityAccessManager", $scriptblock, $true)) | Out-Null
