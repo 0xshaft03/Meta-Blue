@@ -29,7 +29,9 @@ Invoke-Collection -LocalCollectAll -OutFolder C:\Results
 # Collect specific data points
 Invoke-Collection -LocalCollectByName Processes,Services -OutFolder C:\Results
 
-# Collect by MITRE ATT&CK category
+# Collect by MITRE ATT&CK tactic
+#   Available: Persistence, Discovery, DefenseEvasion, LateralMovement,
+#   CommandAndControl, PrivilegeEscalation, CredentialAccess, Uncategorized
 Invoke-Collection -LocalCollectByCategory Persistence -OutFolder C:\Results
 
 # Quick triage — ~20 highest-signal data points, finishes in seconds
@@ -80,7 +82,7 @@ Output is written to `CurrentPath\Anomalies\` as `<DataPoint>-Added.csv` and
 
 | Module | Purpose |
 |---|---|
-| `Modules/DataPoint/` | DataPoint class, TechniqueCategory enum, 76 data point factory, Quick profile flag |
+| `Modules/DataPoint/` | DataPoint class, TechniqueCategory enum (8 MITRE tactic values), 76 data point factory, Quick profile flag |
 | `Modules/JobController/` | Background job reaping and WinRM runspace pool management |
 | `Modules/Node/` | Simple node class with 4 string properties |
 
