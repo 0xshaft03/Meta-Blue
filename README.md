@@ -1,28 +1,74 @@
 # Meta-Blue
-An open source hunt framework for Microsoft Windows networks. Find out your network's host configuration baseline and what lies outside of it on the fly. 
 
-Currently collects 76 forensically relevant data points.
+PowerShell-based Windows hunt framework. Collects 76
+MITRE ATT&CK-aligned data points from local or remote hosts.
 
+## Prerequisites
 
-# In Progress:
+- **Windows PowerShell 5.1** 
+- **Local administrator rights** on target hosts (for most data points)
+- **WinRM access** to targets (for remote collection)
+- **ActiveDirectory module** (for `-ComputerSet ActiveDirectory`)
 
-The repo is currently in a weird state. Originally, the intent of the project was to have a single .ps1 to do everything. We are working to move the remote collection into its own module so that the local collect is a much 
-lighter weight script.
+## Quickstart
 
-## Collection
- - A few of the datapoints being collected are either irrelevant or do not return something of implict value.
- - Reworking services to scrape registry instead of get-services/gwmi win32_service/etc.
- - Incorporating checks from tools like [WinPwn](https://github.com/S3cur3Th1sSh1t/WinPwn) and [WinPEAS](https://github.com/peass-ng/PEASS-ng/tree/master/winPEAS). (if attackers know where they can privesc, shouldn't you?)
- - Parameter Sets:
-    - LocalCollectAll
-    - LocalCollectByName
-    - LocalCollectByCategory
-    - RemoteCollectAll
-    - RemoteCollectByName
-    - RemoteCollectByCategory
+```powershell
+git clone https://github.com/0xshaft03/Meta-Blue
+cd Meta-Blue
+using module .\Modules\DataPoint\DataPoint.psm1
+using module .\Modules\JobController\JobController.psm1
+. .\Invoke-Collection.ps1
 
+# Collect all 76 data points on the local machine
+Invoke-Collection -LocalCollectAll -OutFolder C:\Results
+```
 
+## Usage
 
-## UI/UX
- - Finally working on getting rid of the menu.
- - Using cmdletbinding in next version
+```powershell
+# Collect specific data points
+Invoke-Collection -LocalCollectByName Processes,Services -OutFolder C:\Results
+
+# Collect by MITRE ATT&CK category
+Invoke-Collection -LocalCollectByCategory Persistence -OutFolder C:\Results
+
+# Collect from all Active Directory computers
+Invoke-Collection -RemoteCollectAll -ComputerSet ActiveDirectory -OutFolder C:\Results
+
+# Choose output format (csv or json)
+Invoke-Collection -LocalCollectAll -OutFolder C:\Results -OutputFormat json
+```
+
+## Output
+
+Files are written to `<OutFolder>\<timestamp>\Raw\`.
+
+- **Local collection:** one CSV/JSON file per data point
+- **Remote collection:** per-host folders, each with per-data-point files
+
+## Project status
+
+| Entrypoint | Status |
+|---|---|
+| `Invoke-Collection` | Active — local and remote collection |
+| `Invoke-Discovery` | Stub — network discovery not yet implemented |
+| `Invoke-MetaBlue` | Stub — placeholder for unified orchestrator |
+| `Legacy/` | Archived monolithic scripts, not actively developed |
+
+### Modules
+
+| Module | Purpose |
+|---|---|
+| `Modules/DataPoint/` | DataPoint class, TechniqueCategory enum, 76 data point factory |
+| `Modules/JobController/` | Background job reaping and WinRM runspace pool management |
+| `Modules/Node/` | Simple node class with 4 string properties |
+
+## Caveats
+
+Some data points are self-acknowledged low quality — see comments in
+`Modules/DataPoint/DataPoint.psm1` for details (`ProgramData`, `KnownDLLs`,
+`Startup`, `Services` are flagged).
+
+## License
+
+MIT — see [LICENSE](LICENSE).

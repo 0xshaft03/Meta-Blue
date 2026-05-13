@@ -55,7 +55,7 @@ function New-DataPoints(){
         if(!(test-path HKU:)){
             New-PSDrive -Name HKU -PSProvider Registry -Root Registry::HKEY_USERS| Out-Null;
         }
-        $UserInstalls += Get-ChildItem -Path HKU: | Where-Object {$_.Name -match 'S-\d-\d+-(\d+-){1,14}\d+$'} | ForEach-Object {$_.PSChildName };
+        $UserInstalls = Get-ChildItem -Path HKU: | Where-Object {$_.Name -match 'S-\d-\d+-(\d+-){1,14}\d+$'} | ForEach-Object {$_.PSChildName };
         foreach($user in $UserInstalls){
             Get-ItemProperty "HKU:\$User\Control Panel\Desktop" -Name ScreenSaveActive;
             Get-ItemProperty "HKU:\$User\Control Panel\Desktop" -Name SCRNSAVE.exe;
@@ -78,7 +78,7 @@ function New-DataPoints(){
     $scriptblock = {Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\*' | Select-Object DisableExeptionChainValidation,MitigationOptions,PSPath,PSChildName,PSComputerName}
     $datapoints.Add([DataPoint]::new("AccessibilityFeature", $scriptblock, $true, "T1546.008", [TechniqueCategory]::Uncategorized)) | Out-Null
 
-    $scriptblock = {Test-Path 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\appcertdlls\'}
+    $scriptblock = {Get-ItemProperty 'HKLM:\SYSTEM\CurrentControlSet\Control\Session Manager\AppCertDlls' -ErrorAction SilentlyContinue}
     $datapoints.Add([DataPoint]::new("AppCertDLLS", $scriptblock, $true, "T1546.009", [TechniqueCategory]::Uncategorized)) | Out-Null
 
     $scriptblock = {$(
@@ -88,7 +88,7 @@ function New-DataPoints(){
             New-PSDrive -Name HKU -PSProvider Registry -Root Registry::HKEY_USERS| Out-Null;
         }
         #This is a handy line that gets all the sids for users from the registry.
-        $UserInstalls += Get-ChildItem -Path HKU: | Where-Object {$_.Name -match 'S-\d-\d+-(\d+-){1,14}\d+$'} | ForEach-Object {$_.PSChildName };
+        $UserInstalls = Get-ChildItem -Path HKU: | Where-Object {$_.Name -match 'S-\d-\d+-(\d+-){1,14}\d+$'} | ForEach-Object {$_.PSChildName };
         $(foreach ($User in $UserInstalls){
             Get-ItemProperty "HKU:\$User\Software\Microsoft\Windows NT\CurrentVersion\Windows\" -name AppInit_DLLs;
             Get-ItemProperty "HKU:\$User\Software\Wow6432Node\Microsoft\Windows NT\CurrentVersion\Windows\" -name AppInit_DLLs
@@ -96,18 +96,27 @@ function New-DataPoints(){
         $UserInstalls = $null;) | Where-Object {($null -ne $_.DisplayName) -and ($null -ne $_.Publisher)}}
     $datapoints.Add([DataPoint]::new("AppInitDLLS", $scriptblock, $true, "T1546.010", [TechniqueCategory]::Uncategorized)) | Out-Null
 
-    $scriptblock = {Get-WinEvent -FilterHashtable @{LogName='Microsoft-Windows-Kernel-ShimEngine/Operational';}  |Select-Object Message,TimeCreated,ProcessId,ThreadId}
+    $scriptblock = {Get-WinEvent -FilterHashtable @{LogName='Microsoft-Windows-Kernel-ShimEngine/Operational'} -ErrorAction SilentlyContinue | Select-Object Message,TimeCreated,ProcessId,ThreadId}
     $datapoints.Add([DataPoint]::new("ApplicationShimming", $scriptblock, $true, "T1546.011", [TechniqueCategory]::Uncategorized)) | Out-Null
 
     $scriptblock = {Get-ItemProperty "HKLM:\SOFTWARE\Microsoft\Windows NT\CurrentVersion\Image File Execution Options\*" -name Debugger -ErrorAction SilentlyContinue}
     $datapoints.Add([DataPoint]::new("ImageFileExecutionOptions", $scriptblock, $true, "T1546.012", [TechniqueCategory]::Uncategorized)) | Out-Null
 
     $scriptblock = {
-                    test-path $pshome\profile.ps1
-                    test-path $pshome\microsoft.*.ps1
-                    test-path "c:\users\*\My Documents\powershell\Profile.ps1"
-                    test-path "C:\Users\*\My Documents\microsoft.*.ps1"
-                
+                    $profilePaths = @(
+                        "$pshome\profile.ps1",
+                        "$pshome\Microsoft.PowerShell_profile.ps1"
+                    )
+                    Get-ChildItem C:\Users\* -Directory -ErrorAction SilentlyContinue | ForEach-Object {
+                        $userDoc = $_.FullName
+                        $profilePaths += "$userDoc\Documents\WindowsPowerShell\Profile.ps1"
+                        $profilePaths += "$userDoc\Documents\WindowsPowerShell\Microsoft.PowerShell_profile.ps1"
+                        $profilePaths += "$userDoc\Documents\PowerShell\Profile.ps1"
+                        $profilePaths += "$userDoc\Documents\PowerShell\Microsoft.PowerShell_profile.ps1"
+                    }
+                    $profilePaths | Where-Object { Test-Path $_ } | ForEach-Object {
+                        Get-Item $_ | Select-Object FullName, Length, LastWriteTime, @{N='Hash';E={(Get-FileHash $_ -ea SilentlyContinue).Hash}}
+                    }
                 }
     $datapoints.Add([DataPoint]::new("PowershellProfile", $scriptblock, $true, "T1546.013", [TechniqueCategory]::Uncategorized)) | Out-Null
 
@@ -124,8 +133,7 @@ function New-DataPoints(){
                 New-PSDrive -Name HKU -PSProvider Registry -Root Registry::HKEY_USERS| Out-Null;
             }
             #This is a handy line that gets all the sids for users from the registry.
-            $UserInstalls = ""
-            $UserInstalls += Get-ChildItem -Path HKU: | Where-Object {$_.Name -match 'S-\d-\d+-(\d+-){1,14}\d+$'} | ForEach-Object {$_.PSChildName };
+            $UserInstalls = Get-ChildItem -Path HKU: | Where-Object {$_.Name -match 'S-\d-\d+-(\d+-){1,14}\d+$'} | ForEach-Object {$_.PSChildName };
             $(foreach ($User in $UserInstalls){
                 Get-ItemProperty "HKU:\$User\Software\Microsoft\Windows NT\CurrentVersion\Winlogon\" -name UserInit, shell -ErrorAction SilentlyContinue
             });
@@ -178,14 +186,14 @@ function New-DataPoints(){
     }
     $datapoints.Add([DataPoint]::new("Processes", $scriptblock, $true)) | Out-Null
 
-    $scriptblock = {Get-DnsClientCache -ErrorAction SilentlyContinue | Select-Object -Property TTL,pscomputername,data,entry,name}
+    $scriptblock = {try {Get-DnsClientCache -ErrorAction SilentlyContinue | Select-Object -Property TTL,pscomputername,data,entry,name} catch {}}
     $datapoints.Add([DataPoint]::new("DNSCache", $scriptblock, $true)) | Out-Null
 
     # I don't know how to feel about this one. Seems trash.
     $scriptblock = {Get-ChildItem -Recurse c:\ProgramData\ | Select-Object -Property Fullname,Pscomputername,creationtimeutc,lastaccesstimeutc,attributes} 
     $datapoints.Add([DataPoint]::new("ProgramData", $scriptblock, $true)) | Out-Null
 
-    $scriptblock = {Set-Location C:\Users; (Get-ChildItem -Recurse).fullname | Get-Item -Stream * | Where-Object{$_.stream -ne ':$DATA'} | Select-Object -Property Filename,Pscomputername,stream}
+    $scriptblock = {Get-ChildItem -Path C:\Users\* -Recurse -Depth 3 -ErrorAction SilentlyContinue | ForEach-Object FullName | Get-Item -Stream * -ErrorAction SilentlyContinue | Where-Object {$_.Stream -ne ':$DATA'} | Select-Object -Property Filename, PSComputerName, Stream}
     $datapoints.Add([DataPoint]::new("AlternateDataStreams", $scriptblock, $true, "T1564.004", [TechniqueCategory]::Uncategorized)) | Out-Null
 
     # This one is hot garbage as well. 
@@ -199,10 +207,10 @@ function New-DataPoints(){
     }
     $datapoints.Add([DataPoint]::new("DLLSearchOrderHijacking", $scriptblock, $true, "T1574.001", [TechniqueCategory]::Uncategorized)) | Out-Null
 
-    $scriptblock = {Get-WinEvent -FilterHashtable @{ LogName='Microsoft-Windows-Bits-Client/Operational'; Id='59'} | Select-Object -Property message,pscomputername,id,logname,processid,userid,timecreated}
+    $scriptblock = {Get-WinEvent -FilterHashtable @{ LogName='Microsoft-Windows-Bits-Client/Operational'; Id='59'} -ErrorAction SilentlyContinue | Select-Object -Property message,pscomputername,id,logname,processid,userid,timecreated}
     $datapoints.Add([DataPoint]::new("BITSJobsLogs", $scriptblock, $true, "T1197", [TechniqueCategory]::Uncategorized)) | Out-Null
 
-    $scriptblock = {Get-BitsTransfer -AllUsers}
+    $scriptblock = {try {Get-BitsTransfer -AllUsers} catch {}}
     $datapoints.Add([DataPoint]::new("BITSTransfer", $scriptblock, $true, "T1197", [TechniqueCategory]::Uncategorized)) | Out-Null
 
     $scriptblock = {Get-WmiObject win32_bios | Select-Object -Property pscomputername,biosversion,caption,currentlanguage,manufacturer,name,serialnumber}
@@ -210,23 +218,21 @@ function New-DataPoints(){
 
     $scriptblock = {
                     $logonScriptsArrayList = [System.Collections.ArrayList]@();
-                    
+
                     New-PSDrive HKU Registry HKEY_USERS -ErrorAction SilentlyContinue | Out-Null;
                     Set-Location HKU: | Out-Null;
 
-                    $SIDS  += Get-ChildItem -Path HKU: | Where-Object {$_.Name -match 'S-\d-\d+-(\d+-){1,14}\d+$'} | ForEach-Object {$_.PSChildName };
+                    $SIDS = Get-ChildItem -Path HKU: | Where-Object {$_.Name -match 'S-\d-\d+-(\d+-){1,14}\d+$'} | ForEach-Object {$_.PSChildName };
 
                     foreach($SID in $SIDS){
+                        $scriptPath = (Get-ItemProperty HKU:\$SID\Environment\ -Name userinitmprlogonscript -ErrorAction SilentlyContinue).userinitmprlogonscript
                         $logonscriptObject = [PSCustomObject]@{
-                            SID =""
-                            HasLogonScripts = ""
-                    
-                        };
-                        $logonscriptObject.sid = $SID; 
-                        $logonscriptObject.haslogonscripts = !($null -eq (Get-ItemProperty HKU:\$SID\Environment\).userinitmprlogonscript); 
-                        $logonScriptsArrayList.add($logonscriptObject) | out-null
+                            SID = $SID
+                            ScriptPath = if ($scriptPath) { $scriptPath } else { $null }
                         }
-                        $logonScriptsArrayList
+                        $logonScriptsArrayList.Add($logonscriptObject) | Out-Null
+                    }
+                    $logonScriptsArrayList
                 }
     $datapoints.Add([DataPoint]::new("UserInitMprLogonScript", $scriptblock, $true)) | Out-Null
 
@@ -238,7 +244,7 @@ function New-DataPoints(){
                             New-PSDrive -Name HKU -PSProvider Registry -Root Registry::HKEY_USERS| Out-Null;
                         }
                         #This is a handy line that gets all the sids for users from the registry.
-                        $UserInstalls += Get-ChildItem -Path HKU: | Where-Object {$_.Name -match 'S-\d-\d+-(\d+-){1,14}\d+$'} | ForEach-Object {$_.PSChildName };
+        $UserInstalls = Get-ChildItem -Path HKU: | Where-Object {$_.Name -match 'S-\d-\d+-(\d+-){1,14}\d+$'} | ForEach-Object {$_.PSChildName };
                         $(foreach ($User in $UserInstalls){
                             Get-ItemProperty HKU:\$User\SOFTWARE\Microsoft\Windows\CurrentVersion\Uninstall\*;
                             Get-ItemProperty HKU:\$User\SOFTWARE\Wow6432Node\Windows\CurrentVersion\Uninstall\*
@@ -254,7 +260,7 @@ function New-DataPoints(){
     $scriptblock = {Get-WmiObject win32_service | Select-Object -Property PSComputerName,caption,description,pathname,processid,startname,state}
     $datapoints.Add([DataPoint]::new("Services", $scriptblock, $true, "T1543.003", [TechniqueCategory]::Uncategorized)) | Out-Null
 
-    $scriptblock = {Get-WindowsOptionalFeature -Online -FeatureName microsoftwindowspowershellv2 | Select-Object -Property PSComputerName,FeatureName,State,LogPath}
+    $scriptblock = {try {Get-WindowsOptionalFeature -Online -FeatureName microsoftwindowspowershellv2 | Select-Object -Property PSComputerName,FeatureName,State,LogPath} catch {}}
     $datapoints.Add([DataPoint]::new("PowerShellVersion", $scriptblock, $true)) | Out-Null
 
     # I don't like this one either.
@@ -289,13 +295,13 @@ function New-DataPoints(){
     $scriptblock = {Get-WmiObject win32_networkloginprofile}
     $datapoints.Add([DataPoint]::new("Logon", $scriptblock, $true)) | Out-Null
 
-    $scriptblock = {get-NetTcpConnection}
+    $scriptblock = {try {Get-NetTcpConnection} catch {}}
     $datapoints.Add([DataPoint]::new("NetworkConnections", $scriptblock, $true)) | Out-Null
 
-    $scriptblock = {Get-SmbShare}
+    $scriptblock = {try {Get-SmbShare} catch {}}
     $datapoints.Add([DataPoint]::new("SMBShares", $scriptblock, $true)) | Out-Null
 
-    $scriptblock = {Get-SmbConnection}
+    $scriptblock = {try {Get-SmbConnection} catch {}}
     $datapoints.Add([DataPoint]::new("SMBConnections", $scriptblock, $true)) | Out-Null
 
 
@@ -422,10 +428,10 @@ function New-DataPoints(){
     $scriptblock = {Get-HotFix -ErrorAction SilentlyContinue}
     $datapoints.Add([DataPoint]::new("Hotfixes", $scriptblock, $true)) | Out-Null
 
-    $scriptblock = {Get-NetNeighbor -ErrorAction SilentlyContinue}
+    $scriptblock = {try {Get-NetNeighbor -ErrorAction SilentlyContinue} catch {}}
     $datapoints.Add([DataPoint]::new("ArpCache", $scriptblock, $true)) | Out-Null
 
-    $scriptblock = {Get-WinEvent -FilterHashtable @{ LogName='System'; Id='7045';} | Select-Object timecreated,message}
+    $scriptblock = {Get-WinEvent -FilterHashtable @{ LogName='System'; Id='7045'} -ErrorAction SilentlyContinue | Select-Object timecreated,message}
     $datapoints.Add([DataPoint]::new("NewlyRegisteredServices", $scriptblock, $true)) | Out-Null
 
     $scriptblock = {Get-ItemProperty 'HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\App Paths\*' -Name *}
@@ -435,8 +441,7 @@ function New-DataPoints(){
                     if(!(test-path HKU:)){
                         New-PSDrive -Name HKU -PSProvider Registry -Root Registry::HKEY_USERS| Out-Null;
                     }
-                    $UserInstalls = ""
-                    $UserInstalls += Get-ChildItem -Path HKU: | Where-Object {$_.Name -match 'S-\d-\d+-(\d+-){1,14}\d+$'} | ForEach-Object {$_.PSChildName };
+                    $UserInstalls = Get-ChildItem -Path HKU: | Where-Object {$_.Name -match 'S-\d-\d+-(\d+-){1,14}\d+$'} | ForEach-Object {$_.PSChildName };
                     foreach($user in $UserInstalls){
                         if(test-path HKU\$user\Software\Classes\ms-settings\shell\open\command){
                             Get-ItemProperty HKU:\$User\SOFTWARE\classes\ms-settings-shell\open\command -ErrorAction SilentlyContinue
@@ -546,7 +551,7 @@ function New-DataPoints(){
                 }
     $datapoints.Add([DataPoint]::new("HistoricalWiFiConnections", $scriptblock, $true)) | Out-Null
 
-    $scriptblock = {Get-WinEvent -FilterHashtable @{LogName='Microsoft-Windows-Windows Firewall With Advanced Security/Firewall';} | Select-Object TimeCreated, Message}
+    $scriptblock = {Get-WinEvent -FilterHashtable @{LogName='Microsoft-Windows-Windows Firewall With Advanced Security/Firewall'} -ErrorAction SilentlyContinue | Select-Object TimeCreated, Message}
     $datapoints.Add([DataPoint]::new("HistoricalFirewallChanges", $scriptblock, $true)) | Out-Null
 
     $scriptblock = {
@@ -570,7 +575,7 @@ function New-DataPoints(){
     $scriptblock = {(Get-ItemProperty HKLM:\SOFTWARE\Microsoft\Windows\CurrentVersion\CapabilityAccessManager\ConsentStore\*\NonPackaged\*)}
     $datapoints.Add([DataPoint]::new("CapabilityAccessManager", $scriptblock, $true)) | Out-Null
 
-    $scriptblock = {Get-DnsClientServerAddress}
+    $scriptblock = {try {Get-DnsClientServerAddress} catch {}}
     $datapoints.Add([DataPoint]::new("DnsClientServerAddress", $scriptblock, $true)) | Out-Null
 
     $scriptblock = {
@@ -586,23 +591,23 @@ function New-DataPoints(){
     $scriptblock = {(Get-Process -Module -ea 0).FileName|Where-Object{$_ -notlike "*system32*"}|Select-String "Appdata","ProgramData","Temp","Users","public"|Get-unique|ForEach-Object{Get-FileHash -Path $_}}
     $datapoints.Add([DataPoint]::new("DLLsInTempDirs", $scriptblock, $true)) | Out-Null
 
-    $scriptblock = {Get-WinEvent -Log 'Microsoft-Windows-TerminalServices-LocalSessionManager/Operational' | Select-Object -exp Properties | Where-Object {$_.Value -like '*.*.*.*' } | Sort-Object Value -u }
+    $scriptblock = {Get-WinEvent -Log 'Microsoft-Windows-TerminalServices-LocalSessionManager/Operational' -ErrorAction SilentlyContinue | Select-Object -exp Properties | Where-Object {$_.Value -like '*.*.*.*' } | Sort-Object Value -u }
     $datapoints.Add([DataPoint]::new("RDPHistoricallyConnectedIPs", $scriptblock, $true)) | Out-Null
 
-    $scriptblock = {Get-MpComputerStatus}
+    $scriptblock = {try {Get-MpComputerStatus} catch {}}
     $datapoints.Add([DataPoint]::new("MpComputerStatus", $scriptblock, $true)) | Out-Null
 
-    $scriptblock = {Get-MpPreference}
+    $scriptblock = {try {Get-MpPreference} catch {}}
     $datapoints.Add([DataPoint]::new("MpPreference", $scriptblock, $true)) | Out-Null
 
     # I need to go through the keys and pullout the actual dlls and stuff for the com objects.
     $scriptblock = {Get-ChildItem HKLM:\Software\Classes -ea 0| Where-Object {$_.PSChildName -match '^\w+\.\w+$' -and(Get-ItemProperty "$($_.PSPath)\CLSID" -ea 0)} | Select-Object Name}
     $datapoints.Add([DataPoint]::new("COMObjects", $scriptblock, $true)) | Out-Null
 
-    $scriptblock = {get-winevent -FilterHashtable @{LogName='Microsoft-Windows-CodeIntegrity/Operational';} | Where-Object{$_.leveldisplayname -eq 'Error'} | Select-Object Message, id, processid, timecreated}
+    $scriptblock = {Get-WinEvent -FilterHashtable @{LogName='Microsoft-Windows-CodeIntegrity/Operational'} -ErrorAction SilentlyContinue | Where-Object{$_.leveldisplayname -eq 'Error'} | Select-Object Message, id, processid, timecreated}
     $datapoints.Add([DataPoint]::new("CodeIntegrityLogs", $scriptblock, $true)) | Out-Null
 
-    $scriptblock = {get-winevent -FilterHashtable @{LogName='Security';} | Where-Object{$_.id -eq 1102} | Select-Object TimeCreated, Id, Message}
+    $scriptblock = {Get-WinEvent -FilterHashtable @{LogName='Security'} -ErrorAction SilentlyContinue | Where-Object{$_.id -eq 1102} | Select-Object TimeCreated, Id, Message}
     $datapoints.Add([DataPoint]::new("SecurityLogCleared", $scriptblock, $true, "T1070.001", [TechniqueCategory]::Uncategorized)) | Out-Null
 
     $scriptblock = {
@@ -758,13 +763,13 @@ function New-DataPoints(){
                 }
     $datapoints.Add([DataPoint]::new("RegistryRunKeys", $scriptblock, $true, "T1547.001", [TechniqueCategory]::Uncategorized)) | Out-Null
 
-    $scriptblock = {Get-MpPreference | Select-Object -ExpandProperty ExclusionPath}
+    $scriptblock = {try {Get-MpPreference | Select-Object -ExpandProperty ExclusionPath} catch {}}
     $datapoints.Add([DataPoint]::new("DefenderExclusionPath", $scriptblock, $true, "T1562.001", [TechniqueCategory]::ImpairDefenses)) | Out-Null
 
-    $scriptblock = {Get-MpPreference | Select-Object -ExpandProperty ExclusionIpAddress}
+    $scriptblock = {try {Get-MpPreference | Select-Object -ExpandProperty ExclusionIpAddress} catch {}}
     $datapoints.Add([DataPoint]::new("DefenderExclusionIpAddress", $scriptblock, $true, "T1562.001", [TechniqueCategory]::ImpairDefenses)) | Out-Null
 
-    $scriptblock = {Get-MpPreference | Select-Object -ExpandProperty ExclusionExtension}
+    $scriptblock = {try {Get-MpPreference | Select-Object -ExpandProperty ExclusionExtension} catch {}}
     $datapoints.Add([DataPoint]::new("DefenderExclusionExtension", $scriptblock, $true, "T1562.001", [TechniqueCategory]::ImpairDefenses)) | Out-Null
 
     return $datapoints
