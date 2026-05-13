@@ -109,6 +109,10 @@ function New-RemoteRunspacePoolScriptBlock() {
     and removed from the list. Returns when all jobs have been collected,
     failed, or timed out.
 
+    When -PassThru is set, each received row is also tagged with `DataPoint`
+    and `ComputerName` note properties and emitted to the pipeline (in
+    addition to being written to CSV).
+
 .PARAMETER RemoteJobs
     List[PSObject] of job objects created by New-RemoteRunspacePoolScriptBlock.
 
@@ -122,8 +126,14 @@ function New-RemoteRunspacePoolScriptBlock() {
     Maximum milliseconds a job is allowed to run before being considered
     timed out and cleaned up (default 300000).
 
+.PARAMETER PassThru
+    When set, emit tagged row objects to the pipeline in addition to writing
+    CSV files. Each row gets `DataPoint` (job name) and `ComputerName`
+    (the remote host) note properties.
+
 .OUTPUTS
     CSV files at <rawFolder>\<ComputerName>\Host_<DataPoint>.csv
+    With -PassThru: row objects with DataPoint + ComputerName note properties.
 #>
 function Get-ArtifactFromRemoteRunspacePool() {
     [CmdletBinding()]
@@ -133,7 +143,9 @@ function Get-ArtifactFromRemoteRunspacePool() {
         [string]$rawFolder,
 
         [int]$PollIntervalMs = 30000,
-        [int]$JobTimeoutMs = 300000
+        [int]$JobTimeoutMs = 300000,
+
+        [switch]$PassThru
     )
 
     if ([String]::IsNullOrEmpty($rawFolder)) {
@@ -189,6 +201,16 @@ function Get-ArtifactFromRemoteRunspacePool() {
                     $results = $job.JobHandle.EndInvoke($job.AsyncHandle)
                     if ($null -ne $results) {
                         $results | Export-Csv -Force -Append -NoTypeInformation -Path "$destPath\Host_$($job.JobName).csv"
+                        if ($PassThru) {
+                            $remoteComputerName = $job.RemoteComputerName
+                            $remoteJobName      = $job.JobName
+                            foreach ($row in $results) {
+                                if ($null -eq $row) { continue }
+                                $row | Add-Member -NotePropertyName DataPoint    -NotePropertyValue $remoteJobName       -Force
+                                $row | Add-Member -NotePropertyName ComputerName -NotePropertyValue $remoteComputerName -Force
+                                $row
+                            }
+                        }
                     }
                     $job.JobHandle.Dispose()
                 } catch {
@@ -214,22 +236,36 @@ function Get-ArtifactFromRemoteRunspacePool() {
     Failed and unexpected-state jobs are cleaned up. Returns when no jobs
     remain.
 
+    When -PassThru is set, each received row is also tagged with `DataPoint`
+    and `ComputerName` note properties and emitted to the pipeline (in
+    addition to being written to CSV).
+
 .PARAMETER rawFolder
     Directory path where CSV output files are written.
 
+.PARAMETER PassThru
+    When set, emit tagged row objects to the pipeline in addition to writing
+    CSV files. Each row gets `DataPoint` (job name) and `ComputerName`
+    ($env:COMPUTERNAME) note properties.
+
 .OUTPUTS
     CSV files at <rawFolder>\Host_<DataPoint>.csv
+    With -PassThru: row objects with DataPoint + ComputerName note properties.
 #>
 function Get-Artifact() {
     [CmdletBinding()]
     param(
-        [string]$rawFolder = $global:rawFolder
+        [string]$rawFolder = $global:rawFolder,
+
+        [switch]$PassThru
     )
 
     if ([String]::IsNullOrEmpty($rawFolder)) {
         Write-Error "rawFolder cannot be null or empty"
         return
     }
+
+    $computerName = $env:COMPUTERNAME
 
     do {
         $jobs = Get-Job
@@ -244,8 +280,18 @@ function Get-Artifact() {
 
             switch ($job.State) {
                 'Completed' {
-                    Receive-Job -Id $jobId |
-                        Export-Csv -Force -Append -NoTypeInformation -Path $filePath
+                    $received = Receive-Job -Id $jobId
+                    if ($null -ne $received) {
+                        $received | Export-Csv -Force -Append -NoTypeInformation -Path $filePath
+                        if ($PassThru) {
+                            foreach ($row in $received) {
+                                if ($null -eq $row) { continue }
+                                $row | Add-Member -NotePropertyName DataPoint    -NotePropertyValue $jobName      -Force
+                                $row | Add-Member -NotePropertyName ComputerName -NotePropertyValue $computerName -Force
+                                $row
+                            }
+                        }
+                    }
                     if (-not $job.HasMoreData) {
                         Remove-Job -Id $jobId -Force
                     }
@@ -259,8 +305,18 @@ function Get-Artifact() {
                     $remaining++
                 }
                 'Stopped' {
-                    Receive-Job -Id $jobId |
-                        Export-Csv -Force -Append -NoTypeInformation -Path $filePath
+                    $received = Receive-Job -Id $jobId
+                    if ($null -ne $received) {
+                        $received | Export-Csv -Force -Append -NoTypeInformation -Path $filePath
+                        if ($PassThru) {
+                            foreach ($row in $received) {
+                                if ($null -eq $row) { continue }
+                                $row | Add-Member -NotePropertyName DataPoint    -NotePropertyValue $jobName      -Force
+                                $row | Add-Member -NotePropertyName ComputerName -NotePropertyValue $computerName -Force
+                                $row
+                            }
+                        }
+                    }
                     Remove-Job -Id $jobId -Force
                 }
                 default {
