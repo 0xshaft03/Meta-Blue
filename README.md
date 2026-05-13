@@ -32,6 +32,9 @@ Invoke-Collection -LocalCollectByName Processes,Services -OutFolder C:\Results
 # Collect by MITRE ATT&CK category
 Invoke-Collection -LocalCollectByCategory Persistence -OutFolder C:\Results
 
+# Quick triage — ~20 highest-signal data points, finishes in seconds
+Invoke-Collection -LocalCollectAll -CollectionProfile Quick -OutFolder C:\Results
+
 # Collect from all Active Directory computers
 Invoke-Collection -RemoteCollectAll -ComputerSet ActiveDirectory -OutFolder C:\Results
 
@@ -39,18 +42,36 @@ Invoke-Collection -RemoteCollectAll -ComputerSet ActiveDirectory -OutFolder C:\R
 Invoke-Collection -LocalCollectAll -OutFolder C:\Results -OutputFormat json
 ```
 
+## Baseline diff
+
+Compare two collection runs to find new/changed/removed rows per data point:
+
+```powershell
+. .\Invoke-BaselineDiff.ps1
+Invoke-BaselineDiff -CurrentPath C:\Meta-Blue\2025_02_01_14_00_00 -BaselinePath C:\Meta-Blue\2025_01_25_14_00_00
+```
+
+Output is written to `CurrentPath\Anomalies\` as `<DataPoint>-Added.csv` and
+`<DataPoint>-Removed.csv` for each data point that differs.
+
 ## Output
 
-Files are written to `<OutFolder>\<timestamp>\Raw\`.
+```
+<OutFolder>\<timestamp>\Raw\            # One CSV per data point (or per-host for remote)
+<OutFolder>\<timestamp>\Anomalies\      # Baseline diff output
+<OutFolder>\<timestamp>\collection.json  # Collection manifest
+```
 
 - **Local collection:** one CSV/JSON file per data point
 - **Remote collection:** per-host folders, each with per-data-point files
+- **collection.json:** metadata (timestamp, computer, profile, data point names, row counts)
 
 ## Project status
 
 | Entrypoint | Status |
 |---|---|
 | `Invoke-Collection` | Active — local and remote collection |
+| `Invoke-BaselineDiff` | Active — compare two collection runs |
 | `Invoke-Discovery` | Stub — network discovery not yet implemented |
 | `Invoke-MetaBlue` | Stub — placeholder for unified orchestrator |
 | `Legacy/` | Archived monolithic scripts, not actively developed |
@@ -59,7 +80,7 @@ Files are written to `<OutFolder>\<timestamp>\Raw\`.
 
 | Module | Purpose |
 |---|---|
-| `Modules/DataPoint/` | DataPoint class, TechniqueCategory enum, 76 data point factory |
+| `Modules/DataPoint/` | DataPoint class, TechniqueCategory enum, 76 data point factory, Quick profile flag |
 | `Modules/JobController/` | Background job reaping and WinRM runspace pool management |
 | `Modules/Node/` | Simple node class with 4 string properties |
 
