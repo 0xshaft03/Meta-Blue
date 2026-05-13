@@ -32,12 +32,17 @@ service path that doesn't match the median.
 
 ## Directory layout
 
-- `Modules/DataPoint/` — `DataPoint` class, `TechniqueCategory` enum
+- `Modules/DataPoint/` — `DataPoint` class and `TechniqueCategory` enum
   (Uncategorized, Persistence, Discovery, DefenseEvasion, LateralMovement,
-  CommandAndControl, PrivilegeEscalation, CredentialAccess),
-  `New-DataPoints()` factory (84 data points; 32 Persistence, 19 Discovery,
-  11 DefenseEvasion, 11 Uncategorized, 8 PrivilegeEscalation, 1 each of
-  LateralMovement / CommandAndControl / CredentialAccess).
+  CommandAndControl, PrivilegeEscalation, CredentialAccess) live in
+  `DataPoint.psm1`. `New-DataPoints()` is a thin aggregator that
+  dot-sources one file per tactic from `Tactics/` (84 data points total;
+  32 Persistence, 19 Discovery, 11 DefenseEvasion, 11 Uncategorized,
+  8 PrivilegeEscalation, 1 each of LateralMovement / CommandAndControl /
+  CredentialAccess). To add a new DP: edit the matching
+  `Tactics/<Tactic>.ps1`. The dot-sourced files run inside
+  `New-DataPoints`'s scope and rely on `$datapoints` (ArrayList),
+  `[DataPoint]`, and `[TechniqueCategory]` being defined there.
 - `Modules/JobController/` — `Get-Artifact` (local job reaping),
   `New-RemoteRunspacePool`, `Get-ArtifactFromRemoteRunspacePool`
   (non-blocking `WaitHandle.WaitAny()` polling, tiered timeout, `List[PSObject]`).
